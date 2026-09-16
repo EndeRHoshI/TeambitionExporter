@@ -29,8 +29,8 @@ export async function storeDirectory(config) {
 export async function checkDirectory(config, report = async () => {}) {
   const permission = config?.handle ? await config.handle.queryPermission({ mode: 'readwrite' }) : 'not-selected';
   await report('directory.permission', { directoryName: config?.handle?.name || null, configuredPath: config?.rootPath || null, permission }).catch(() => {});
-  if (!config?.handle) throw Object.assign(new Error('请先右键插件图标，打开“选项”，选择保存目录并授权'), { code: 'DIRECTORY_REQUIRED' });
-  if (permission !== 'granted') throw Object.assign(new Error(`保存父目录“${config.handle.name}”${permission === 'denied' ? '的写入权限被拒绝' : '需要 Chrome 再次确认写入权限'}，请在插件选项中点击“重新授权”；若删除的是所选父目录，请重新选择目录`), { code: 'DIRECTORY_REQUIRED' });
+  if (!config?.handle) throw Object.assign(new Error('请在导出窗口点击“选择目录并导出”，选择保存目录并允许写入'), { code: 'DIRECTORY_REQUIRED' });
+  if (permission !== 'granted') throw Object.assign(new Error(`保存父目录“${config.handle.name}”${permission === 'denied' ? '的写入权限被拒绝' : '需要 Chrome 再次确认写入权限'}，请在导出窗口重新点击“选择目录并导出”，选择可用目录并允许写入`), { code: 'DIRECTORY_REQUIRED' });
   const rootPath = (config.rootPath || '').trim().replace(/\/+$/, '');
   if (rootPath && (!rootPath.startsWith('/') || rootPath.split('/').pop() !== config.handle.name)) throw new Error('选项中的绝对路径与所选文件夹名称不一致，请修正');
   return config;
