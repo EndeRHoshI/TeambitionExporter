@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>Teambition 问题单导出</title>
+<style>
+  body{font:15px/1.6 system-ui,sans-serif;max-width:1000px;margin:40px auto;padding:0 24px;color:#172b4d;background:#f6f8fb}
+  h1{font-size:26px}section{background:white;padding:22px;margin:18px 0;border-radius:12px;border:1px solid #dfe5ee}
+  textarea{width:100%;height:270px;box-sizing:border-box;font:13px/1.5 monospace;padding:12px}
+  button{padding:10px 18px;cursor:pointer;border:0;border-radius:7px;background:#1769e0;color:white;margin-right:12px}
+  button:disabled{opacity:.5;cursor:default}.asset{display:block;padding:9px 0;border-bottom:1px solid #eee;overflow-wrap:anywhere}
+  .url{display:block;color:#667;font-size:12px;margin-left:24px}#status{white-space:pre-wrap;overflow-wrap:anywhere}#path{width:100%;box-sizing:border-box;padding:10px}small{color:#58677e}
+</style>
+<h1>提取 Teambition 问题单</h1>
+<p>导出当前已加载的内容到 Chrome 下载目录，包括自动点击下载的日志附件。请先展开描述、评论和附件并滚动加载完整；导出时保留原问题单页面。</p>
+<section><strong id="title">正在读取…</strong><p id="source"></p><p id="scope"></p>
+<label for="text">问题单文本（可在导出前编辑）</label><textarea id="text"></textarea></section>
+<section><strong>图片、日志及附件候选项</strong><p><small>请核对勾选项。普通网页链接默认不选；无法从页面识别的附件不会出现在这里。图片链接可能指向缩略图。</small></p><div id="assets"></div></section>
+<section><button id="export" disabled>下载并复制目录路径</button><button id="copy" disabled>重新复制路径</button><p id="status" role="status"></p><input id="path" readonly aria-label="导出目录绝对路径" placeholder="下载后显示绝对路径"><p><small>导出过程中请保留此页面；Chrome 若询问是否允许多文件下载，请允许。文件失败会记录在 manifest.json 中。</small></p></section>
+<section><strong>遇到问题，把排查日志发给我</strong>
+<p>成功或失败都会尝试保存 debug-log.json。没有生成文件也没关系，可以直接复制诊断信息。</p>
+<button id="copy-diagnostics">一键复制诊断信息</button><button id="save-diagnostics">保存排查日志</button>
+<p id="diagnostics-status" role="status"></p>
+<details id="diagnostics-panel"><summary id="diagnostics-summary">排查日志</summary><textarea id="diagnostics-text" readonly aria-label="诊断日志"></textarea></details>
+</section>
+<script type="module" src="exporter.js"></script>
+</html>

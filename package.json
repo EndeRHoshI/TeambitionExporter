@@ -1,0 +1,13 @@
+{
+  "name": "teambition-local-exporter",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test tests/*.mjs",
+    "check": "node --check background.js && node --check diagnostics.js && node --check download-match.js && node --check extractor.js && node --check exporter.js"
+  }
+}

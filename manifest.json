@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "Teambition 本地问题单导出",
+  "version": "0.3.0",
+  "description": "预览并导出当前问题单的已加载文本、图片和附件，复制本地目录路径。",
+  "permissions": ["activeTab", "scripting", "downloads", "clipboardWrite", "storage"],
+  "action": { "default_title": "提取当前 Teambition 问题单" },
+  "background": { "service_worker": "background.js", "type": "module" }
+}
