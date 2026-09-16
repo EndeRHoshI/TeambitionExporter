@@ -9,7 +9,7 @@ const directory={async getFileHandle(name,opts={}){
 const config={rootPath:'/Users/test/Projects/客户资料',handle:{name:'客户资料',async queryPermission(){return allow?'granted':'prompt';},async getDirectoryHandle(name,opts){assert.equal(name,'GXXE-10001');assert(opts.create);return directory;}}};
 await assert.rejects(checkDirectory(null),e=>e.code==='DIRECTORY_REQUIRED');
 allow=false;await assert.rejects(checkDirectory(config),e=>e.code==='DIRECTORY_REQUIRED');allow=true;
-await assert.rejects(checkDirectory({...config,rootPath:'/tmp/Wrong'}),/不一致/);
+await checkDirectory({...config,rootPath:'/tmp/Wrong'}); // Legacy copy-path settings no longer affect exports.
 const blob=new Blob(['zip-data']);
 let result=await saveArchive(config,'GXXE-10001','GXXE-10001.zip',blob);
 assert.equal(result.path,'/Users/test/Projects/客户资料/GXXE-10001/GXXE-10001.zip');assert.equal(result.bytes,8);
@@ -47,7 +47,7 @@ const archive={files:[
  {name:'GXXE-10001/assets/log.rar',data:new Uint8Array([82,97,114,0,255])}
 ]};
 const expanded=await saveExport(exportConfig,'GXXE-10001',archive);
-assert.equal(expanded.path,'/tmp/Exports/GXXE-10001');assert(expanded.expanded);
+assert.equal(expanded.path,null);assert(expanded.expanded);
 const first=root.nodes.get('GXXE-10001');
 assert.equal(await first.nodes.get('issue.md').text(),'中文问题描述');
 assert.deepEqual(new Uint8Array(await first.nodes.get('assets').nodes.get('log.rar').arrayBuffer()),new Uint8Array([82,97,114,0,255]));
@@ -66,7 +66,7 @@ console.log('PASS: expanded files preserve UTF-8 and binary data, copy folder pa
 failExpanded=false;
 root.nodes.delete('GXXE-10001');
 const recreated=await saveExport(exportConfig,'GXXE-10001',archive);
-assert.equal(recreated.path,'/tmp/Exports/GXXE-10001');
+assert.equal(recreated.path,null);
 assert.equal(exportConfig.handle,root);
 const permissionEvents=[];
 await checkDirectory(exportConfig,async(event,details)=>permissionEvents.push({event,details}));
@@ -77,7 +77,7 @@ assert.equal(permissionEvents.at(-1).details.permission,'prompt');
 console.log('PASS: deleted export child is recreated under the same parent; permission diagnostics identify parent and Chrome state.');
 for(const key of ['QHFG-10002','APP2-123']) {
  const saved=await saveExport(exportConfig,key,{files:[{name:`${key}/issue.md`,data:'description'}]});
- assert.equal(saved.path,`/tmp/Exports/${key}`);
+ assert.equal(saved.path,null);assert.equal(saved.displayPath,`Exports/${key}`);
 }
 for(const key of ['../QHFG-1','QHFG-1/escape','2026-01','QHFG-']) {
  await assert.rejects(saveExport(exportConfig,key,{files:[]}),/编号无效/);

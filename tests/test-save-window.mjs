@@ -27,12 +27,12 @@ async function setup(path) {
  assert.notEqual(elements.status.textContent,'late');
  return {elements,calls,reject(){rejectCopy=true;},allow(){rejectCopy=false;}};
 }
-const success=await setup('/tmp/Exports/GXXE-1');
-assert.equal(success.elements.save.textContent,'复制路径并关闭');
-assert.equal(success.calls.length,0);
-await success.elements.save.onclick();assert.deepEqual(success.calls,['/tmp/Exports/GXXE-1','close']);
-const retry=await setup('/tmp/Exports/GXXE-1');retry.reject();
-await retry.elements.save.onclick();assert(!retry.calls.includes('close'));assert.match(retry.elements.status.textContent,/复制路径失败/);assert.equal(retry.elements.save.disabled,false);
-retry.allow();await retry.elements.save.onclick();assert.equal(retry.calls.at(-1),'close');
-const noPath=await setup(null);assert.equal(noPath.elements.save.textContent,'关闭');await noPath.elements.save.onclick();assert.deepEqual(noPath.calls,['close']);
-console.log('PASS: close button copies even if already copied; waits for clipboard success; stays open on failure; never fabricates an absolute path.');
+for (const oldPath of ['/tmp/Exports/GXXE-1', null]) {
+ const result=await setup(oldPath);
+ assert.equal(result.elements.save.textContent,'关闭');
+ assert(!result.elements.status.textContent.includes('绝对路径'));
+ assert(!result.elements.status.textContent.includes('复制'));
+ await result.elements.save.onclick();
+ assert.deepEqual(result.calls,['close']);
+}
+console.log('PASS: export progress and closing work without clipboard writes or path configuration.');

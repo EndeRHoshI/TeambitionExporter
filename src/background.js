@@ -146,7 +146,7 @@ async function ensureOffscreen() {
   const url = chrome.runtime.getURL('src/offscreen.html');
   const contexts = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'], documentUrls: [url] });
   if (contexts.length) return;
-  if (!creatingOffscreen) creatingOffscreen = chrome.offscreen.createDocument({ url: 'src/offscreen.html', reasons: ['BLOBS', 'CLIPBOARD'], justification: '收集问题单文件、写入本次选择的目录并复制文件路径。' }).finally(() => { creatingOffscreen = null; });
+  if (!creatingOffscreen) creatingOffscreen = chrome.offscreen.createDocument({ url: 'src/offscreen.html', reasons: ['BLOBS'], justification: '收集问题单文件、写入本次选择的目录。' }).finally(() => { creatingOffscreen = null; });
   await creatingOffscreen;
 }
 let actionBusy = false;
@@ -178,7 +178,7 @@ export async function exportTab(tab, progressToken = null) {
     await finishFeedback(job, {
       tabId: tab.id,
       badge: result.incomplete ? '缺件' : '完成', color: result.incomplete ? '#b45309' : '#15803d', partial: result.incomplete,
-      title: `已保存：${result.path || result.displayPath}。${result.copied ? '路径已复制' : result.path ? '右键打开选项可复制路径' : '可在选项中选填绝对路径，启用自动复制'}`
+      title: `已保存：${result.displayPath}，请到所选目录中查看。`
     });
     return result;
   } catch (error) {

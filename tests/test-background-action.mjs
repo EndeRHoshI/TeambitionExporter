@@ -9,7 +9,7 @@ globalThis.chrome={
   async sendMessage(msg){assert.equal(msg.target,'offscreen');assert.equal(msg.type,'run-export');runs++;
    if(directoryError)return {error:'请先设置 Documents',code:'DIRECTORY_REQUIRED'};
    return {path:'/Users/test/Documents/GXXE-10001/GXXE-10001.zip',bytes:100,copied:true,incomplete:false};}},
- offscreen:{async createDocument(options){assert.equal(options.url,'src/offscreen.html');assert.deepEqual(options.reasons,['BLOBS','CLIPBOARD']);documents++;}},
+ offscreen:{async createDocument(options){assert.equal(options.url,'src/offscreen.html');assert.deepEqual(options.reasons,['BLOBS']);documents++;}},
  action:{onClicked:{addListener(fn){callbacks.click=fn;}},async setBadgeText(v){badges.push(v.text);},async setTitle(v){titles.push(v.title);},async setBadgeBackgroundColor(){}},
  downloads:{onDeterminingFilename:{addListener(){}}},storage:{session:storage(session),local:storage(local)},
  scripting:{async executeScript(){return [{result:snapshot}];}},

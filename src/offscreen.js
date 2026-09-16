@@ -15,7 +15,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   const heartbeat = setInterval(() => { void rpc('runner-heartbeat', { job }).catch(() => {}); }, 20000);
   (async () => {
     const config = await checkDirectory(await loadDirectory(), log);
-    await log('directory.ready', { name: config.handle.name, configuredPath: config.rootPath });
+    await log('directory.ready', { name: config.handle.name });
     const archive = await buildArchive(message.snapshot, {
       log,
       async progress(text, badge, details = {}) { await rpc('runner-progress', { job, text, ...details }); },
@@ -38,18 +38,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       await rpc('runner-progress', { job, text: `保存文件 ${done}/${total}：${name}`, percent: total ? Math.floor(done / total * 100) : 0, phase: 'save' });
     });
     await log('archive.saved', saved);
-    let copied = false;
-    try {
-      if (!saved.path) {
-        await log('clipboard.path-not-configured', { relativePath: saved.relativePath });
-        return { ...saved, copied: false, incomplete: archive.incomplete, successful: archive.successful, failed: archive.failed };
-      }
-      const input = document.getElementById('clipboard'); input.value = saved.path; input.select();
-      copied = document.execCommand('copy');
-      if (!copied) throw new Error('后台剪贴板写入未成功');
-      await log('clipboard.path-copied', { path: saved.path });
-    } catch (error) { await log('clipboard.failed', { message: error.message }, 'warn'); }
-    return { ...saved, copied, incomplete: archive.incomplete, successful: archive.successful, failed: archive.failed };
+    return { ...saved, incomplete: archive.incomplete, successful: archive.successful, failed: archive.failed };
   })().then(respond, async error => {
     await log('export.failed', { message: error.message, code: error.code, stack: error.stack }, 'error').catch(() => {});
     respond({ error: error.message, code: error.code });

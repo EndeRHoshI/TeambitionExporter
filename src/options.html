@@ -1,7 +1,5 @@
-<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>Teambition 保存设置</title>
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>Teambition 导出记录与诊断</title>
 <style>body{font:15px/1.7 system-ui;max-width:760px;margin:28px auto;padding:0 20px;color:#172b4d}section{padding:18px;border:1px solid #dce2ea;border-radius:10px;margin:18px 0}button{padding:9px 15px;margin:6px 6px 6px 0;cursor:pointer}input,textarea{box-sizing:border-box;width:100%;padding:10px}textarea{height:220px}#last,#message{white-space:pre-wrap;overflow-wrap:anywhere}</style>
-<h1>Teambition 保存设置</h1><p>现在每次点击插件图标，都会打开保存小窗口。选择目录即可导出，无需在这里提前授权。</p>
-<section><h2>自动复制路径（可选）</h2><label for="root-path">所选父目录的绝对路径</label><input id="root-path" placeholder="留空也能导出；需要复制绝对路径时再填写">
-<p>这里仅用于拼出剪贴板中的文字，不改变实际保存位置，也不授予权限。浏览器不会提供真实绝对路径，因此需要你核对。留空仍可导出。<br>例如导出时选择 Documents，这里填 /Users/your-name/Documents；导出后会复制 /Users/your-name/Documents/GXXE-10001。不要在这里填问题单子目录。</p><button id="save-path">保存复制路径</button><p id="message" role="status"></p></section>
-<section><h2>最近一次导出</h2><p id="last">尚无导出记录</p><button id="copy-path" disabled>复制文件夹路径</button><button id="copy-log">复制诊断信息</button><button id="refresh">刷新状态</button><textarea id="logs" readonly aria-label="诊断信息"></textarea></section>
+<h1>Teambition 导出记录与诊断</h1><p>现在每次点击插件图标，都会打开保存小窗口。选择目录即可导出，无需在这里提前授权。</p>
+<section><h2>最近一次导出</h2><p id="last">尚无导出记录</p><button id="copy-log">复制诊断信息</button><button id="refresh">刷新状态</button><p id="message" role="status"></p><textarea id="logs" readonly aria-label="诊断信息"></textarea></section>
 <script type="module" src="options.js"></script></html>

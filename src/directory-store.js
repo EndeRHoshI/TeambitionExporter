@@ -28,11 +28,9 @@ export async function storeDirectory(config) {
 }
 export async function checkDirectory(config, report = async () => {}) {
   const permission = config?.handle ? await config.handle.queryPermission({ mode: 'readwrite' }) : 'not-selected';
-  await report('directory.permission', { directoryName: config?.handle?.name || null, configuredPath: config?.rootPath || null, permission }).catch(() => {});
+  await report('directory.permission', { directoryName: config?.handle?.name || null, permission }).catch(() => {});
   if (!config?.handle) throw Object.assign(new Error('请在导出窗口点击“选择目录并导出”，选择保存目录并允许写入'), { code: 'DIRECTORY_REQUIRED' });
   if (permission !== 'granted') throw Object.assign(new Error(`保存父目录“${config.handle.name}”${permission === 'denied' ? '的写入权限被拒绝' : '需要 Chrome 再次确认写入权限'}，请在导出窗口重新点击“选择目录并导出”，选择可用目录并允许写入`), { code: 'DIRECTORY_REQUIRED' });
-  const rootPath = (config.rootPath || '').trim().replace(/\/+$/, '');
-  if (rootPath && (!rootPath.startsWith('/') || rootPath.split('/').pop() !== config.handle.name)) throw new Error('选项中的绝对路径与所选文件夹名称不一致，请修正');
   return config;
 }
 export async function saveArchive(config, issueKey, filename, blob) {
@@ -97,8 +95,6 @@ export async function saveExport(config, issueKey, archive, onProgress = async (
   } catch (error) {
     throw new Error(`目录 ${folder} 中部分文件可能已保存，导出未完成：${error.message}`);
   }
-  const rootPath = (config.rootPath || '').trim().replace(/\/+$/, '');
-  return { path: rootPath ? `${rootPath}/${folder}` : null,
-    relativePath: folder, displayPath: `${config.handle.name}/${folder}`, bytes: entries.reduce((sum, entry) => sum + entry.blob.size, 0),
-    expanded: true, pathSource: rootPath ? 'user-configured-directory' : 'relative-only' };
+  return { path: null, relativePath: folder, displayPath: `${config.handle.name}/${folder}`,
+    bytes: entries.reduce((sum, entry) => sum + entry.blob.size, 0), expanded: true, pathSource: 'relative-only' };
 }
