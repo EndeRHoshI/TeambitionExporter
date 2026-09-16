@@ -52,7 +52,7 @@
       return { name, reason: '页面未提供可识别的下载按钮或下载链接。' };
     }).filter(Boolean);
   return {
-    issueKey: [...root.querySelectorAll('[data-clipboard-text]')].map(el => el.getAttribute('data-clipboard-text')).find(value => /^GXXE-\d+$/.test(value)) || root.innerText.match(/\bGXXE-\d+\b/)?.[0] || '',
+    issueKey: [...root.querySelectorAll('[data-clipboard-text]')].map(el => el.getAttribute('data-clipboard-text')).find(value => /^[A-Z][A-Z0-9]{0,31}-\d+$/.test(value)) || root.innerText.match(/\b[A-Z][A-Z0-9]{0,31}-\d+\b/)?.[0] || '',
     title: root.querySelector('[data-role="object-content"] [contenteditable]')?.textContent.trim() || document.title,
     url: location.href,
     capturedAt: new Date().toISOString(),

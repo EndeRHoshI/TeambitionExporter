@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {logEvent,readDiagnostics,sanitize} from '../src/diagnostics.js';
 const store={}; let failStorage=false;
-globalThis.chrome={storage:{session:{async set(value){if(failStorage)throw Error('quota');Object.assign(store,value);},async get(key){if(failStorage)throw Error('unavailable');return key==null?store:{[key]:store[key]};}}},runtime:{getManifest(){return {version:'1.0.0'};}}};
+globalThis.chrome={storage:{session:{async set(value){if(failStorage)throw Error('quota');Object.assign(store,value);},async get(key){if(failStorage)throw Error('unavailable');return key==null?store:{[key]:store[key]};}}},runtime:{getManifest(){return {version:'1.0.1'};}}};
 const signed='https://user:pass@example.com/file.rar?Signature=secret&token=private#fragment';
 const redacted=sanitize({url:signed,authorization:'Bearer hidden',nested:{cookie:'sid=hidden'},message:'下载失败 '+signed});
 assert(!JSON.stringify(redacted).includes('secret'));
@@ -13,7 +13,7 @@ await logEvent('different-job','background','other',{});
 const report=await readDiagnostics('test-job');
 assert.equal(report.events.length,12);
 assert.equal(new Set(report.events.map(x=>x.details.index)).size,12);
-assert.equal(report.version,'1.0.0');
+assert.equal(report.version,'1.0.1');
 assert(!JSON.stringify(report).includes('Signature='));
 failStorage=true;
 await logEvent('test-job','export-page','storage-fallback',{message:'test'},'error');

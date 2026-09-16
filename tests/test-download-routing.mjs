@@ -54,3 +54,6 @@ globalThis.document={querySelectorAll(){return [root];}};
 assert.throws(()=>injection.func(...injection.args),/另一条问题单/);assert.equal(clicks,0);
 visibleKey='GXXE-10001';assert.equal(injection.func(...injection.args),true);assert.equal(clicks,1);
 console.log('PASS: switching issues at the same version-library URL is detected before clicking an attachment.');
+visibleKey='QHFG-10002';
+assert.equal(injection.func(sourceUrl,'QHFG-10002',expectedName,0),true);
+assert.throws(()=>injection.func(sourceUrl,'GXXE-10001',expectedName,0),/另一条问题单/);

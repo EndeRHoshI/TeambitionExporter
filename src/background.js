@@ -85,7 +85,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       if (!message.url?.startsWith(`blob:${chrome.runtime.getURL('')}`)) throw new Error('无效的本地下载地址');
       const key = preparedKey(message.url);
       if (message.type === 'forget-download') { await chrome.storage.session.remove(key); return { ok: true }; }
-      if (!/^GXXE-\d+\/[^/\\]+\.(zip|json)$/.test(message.filename) || message.filename.includes('..')) throw new Error('无效的归档文件名');
+      if (!/^[A-Z][A-Z0-9]{0,31}-\d+\/[^/\\]+\.(zip|json)$/.test(message.filename) || message.filename.includes('..')) throw new Error('无效的归档文件名');
       await chrome.storage.session.set({ [key]: { filename: message.filename, job: message.job, expires: Date.now() + 30 * 60 * 1000 } });
       return { ok: true };
     })().then(respond, error => respond({ error: error.message }));
@@ -112,7 +112,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
         func: (sourceUrl, expectedIssueKey, expectedName, occurrence) => {
           if (location.href !== sourceUrl) throw new Error('原问题单页面已切换，请重新提取。');
           const root = [...document.querySelectorAll('#root-detail')].filter(el => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden').at(-1);
-          const issueKey = root && ([...root.querySelectorAll('[data-clipboard-text]')].map(el => el.getAttribute('data-clipboard-text')).find(value => /^GXXE-\d+$/.test(value)) || root.innerText.match(/\bGXXE-\d+\b/)?.[0]);
+          const issueKey = root && ([...root.querySelectorAll('[data-clipboard-text]')].map(el => el.getAttribute('data-clipboard-text')).find(value => /^[A-Z][A-Z0-9]{0,31}-\d+$/.test(value)) || root.innerText.match(/\b[A-Z][A-Z0-9]{0,31}-\d+\b/)?.[0]);
           if (!root || issueKey !== expectedIssueKey) throw new Error('已切换到另一条问题单，请重新点击插件导出。');
           const files = [...root.querySelectorAll('.file-content')]
             .filter(el => el.querySelector('.file-name')?.textContent.trim() === expectedName);
@@ -163,7 +163,7 @@ export async function exportTab(tab) {
     if (url.protocol !== 'https:' || !['www.teambition.com', 'teambition.com'].includes(url.hostname)) throw new Error('请在 Teambition 网页中打开问题单详情，再点击插件');
     const results = await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['src/extractor.js'] });
     const data = results[0]?.result;
-    if (data?.scope !== 'teambition-detail' || !/^GXXE-\d+$/.test(data.issueKey || '') || !data.text?.trim()) throw new Error('当前页面没有打开可识别的问题单详情，请点击一条问题单并等待内容加载');
+    if (data?.scope !== 'teambition-detail' || !/^[A-Z][A-Z0-9]{0,31}-\d+$/.test(data.issueKey || '') || !data.text?.trim()) throw new Error('当前页面没有打开可识别的问题单详情，请点击一条问题单并等待内容加载');
     await chrome.storage.session.set({ [job]: { data, tabId: tab.id } });
     await logEvent(job, 'background', 'extract.complete', { issueKey: data.issueKey, assets: data.assets.length, nativeAttachments: data.nativeAttachments?.length || 0 });
     await ensureOffscreen();

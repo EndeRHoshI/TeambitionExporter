@@ -37,7 +37,7 @@ export async function checkDirectory(config, report = async () => {}) {
 }
 export async function saveArchive(config, issueKey, filename, blob) {
   await checkDirectory(config);
-  if (!/^GXXE-\d+$/.test(issueKey) || !/^GXXE-\d+(?:-不完整)?\.zip$/.test(filename)) throw new Error('问题单编号或 ZIP 文件名无效');
+  if (!/^[A-Z][A-Z0-9]{0,31}-\d+$/.test(issueKey) || !/^[A-Z][A-Z0-9]{0,31}-\d+(?:-不完整)?\.zip$/.test(filename)) throw new Error('问题单编号或 ZIP 文件名无效');
   const directory = await config.handle.getDirectoryHandle(issueKey, { create: true });
   // Preserve previous exports. A single offscreen worker serializes exports.
   let candidate = filename;
@@ -60,7 +60,7 @@ export async function saveArchive(config, issueKey, filename, blob) {
 // Write the original archive entries directly; no external unzip app is needed.
 export async function saveExport(config, issueKey, archive) {
   await checkDirectory(config);
-  if (!/^GXXE-\d+$/.test(issueKey)) throw new Error('问题单编号无效');
+  if (!/^[A-Z][A-Z0-9]{0,31}-\d+$/.test(issueKey)) throw new Error('问题单编号无效');
   const entries = archive.files.map(file => {
     const parts = file.name.split('/');
     if (parts.shift() !== issueKey || !parts.length || parts.some(p => !p || p === '.' || p === '..' || /[\\:\u0000-\u001f]/.test(p))) throw new Error('导出文件路径无效');

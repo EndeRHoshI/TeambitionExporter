@@ -12,8 +12,11 @@ try{
  const result=await buildArchive(snapshot,hooks);assert(!result.incomplete);assert.equal(result.successful,2);
  assert.equal(result.blob,undefined);assert.equal(result.filename,undefined);
  const manifest=JSON.parse(result.files.find(file=>file.name==='GXXE-10001/manifest.json').data);
- assert.equal(manifest.complete,true);assert.equal(manifest.exportResults.length,2);assert.equal(manifest.version,'1.0.0');
+ assert.equal(manifest.complete,true);assert.equal(manifest.exportResults.length,2);assert.equal(manifest.version,'1.0.1');
  const partial=await buildArchive(snapshot,{...hooks,async resolveNative(){throw Error('timeout');}});
  assert(partial.incomplete);assert.equal(JSON.parse(partial.files.find(file=>file.name.endsWith('/manifest.json')).data).complete,false);assert.equal(partial.failed,1);
 }finally{await rm(dir,{recursive:true,force:true});}
 console.log('PASS: background archive contents, native attachment resolution, and partial exports marked incomplete.');
+const other=await buildArchive({...snapshot,issueKey:'QHFG-10002'},hooks);
+assert(other.files.every(file=>file.name.startsWith('QHFG-10002/')));
+assert.equal(JSON.parse(other.files.find(file=>file.name.endsWith('/manifest.json')).data).issueKey,'QHFG-10002');

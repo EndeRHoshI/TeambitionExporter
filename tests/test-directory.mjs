@@ -75,3 +75,10 @@ assert.equal(permissionEvents[0].details.permission,'granted');
 await assert.rejects(checkDirectory({...exportConfig,handle:{...root,async queryPermission(){return 'prompt';}}},async(event,details)=>permissionEvents.push({event,details})),e=>e.code==='DIRECTORY_REQUIRED' && e.message.includes('Exports'));
 assert.equal(permissionEvents.at(-1).details.permission,'prompt');
 console.log('PASS: deleted export child is recreated under the same parent; permission diagnostics identify parent and Chrome state.');
+for(const key of ['QHFG-10002','APP2-123']) {
+ const saved=await saveExport(exportConfig,key,{files:[{name:`${key}/issue.md`,data:'description'}]});
+ assert.equal(saved.path,`/tmp/Exports/${key}`);
+}
+for(const key of ['../QHFG-1','QHFG-1/escape','2026-01','QHFG-']) {
+ await assert.rejects(saveExport(exportConfig,key,{files:[]}),/编号无效/);
+}

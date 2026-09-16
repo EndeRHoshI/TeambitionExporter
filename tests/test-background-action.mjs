@@ -4,7 +4,7 @@ let documents=0, runs=0, directoryError=false;
 const snapshot={issueKey:'GXXE-10001',text:'description',scope:'teambition-detail',assets:[],nativeAttachments:[]};
 const storage=values=>({async get(key){return key===null?{...values}:{[key]:values[key]};},async set(v){Object.assign(values,v);},async remove(k){delete values[k];}});
 globalThis.chrome={
- runtime:{id:'test',getURL:p=>'chrome-extension://test/'+p,getManifest:()=>({version:'1.0.0'}),
+ runtime:{id:'test',getURL:p=>'chrome-extension://test/'+p,getManifest:()=>({version:'1.0.1'}),
   onMessage:{addListener(fn){callbacks.message=fn;}},async getContexts(){return documents?[{}]:[];},
   async sendMessage(msg){assert.equal(msg.target,'offscreen');assert.equal(msg.type,'run-export');runs++;
    if(directoryError)return {error:'请先设置 Documents',code:'DIRECTORY_REQUIRED'};
@@ -59,3 +59,6 @@ await resetFeedback();
 console.log('PASS: only the current save window can start export; source tab is retrieved from the stored request.');
 
 assert.equal(openedWindow.left,-1060);assert.equal(openedWindow.top,250);assert.equal(openedWindow.focused,true);assert(badges.every(text=>text===''));
+snapshot.issueKey='QHFG-10002';
+await exportTab(tab);assert.equal(local.lastExport.status,'complete');
+await resetFeedback();

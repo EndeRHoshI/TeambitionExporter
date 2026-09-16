@@ -101,7 +101,7 @@ $('export').addEventListener('click', async () => {
   absolutePath = ''; $('path').value = '';
   const startedAt = Date.now();
   try {
-    if (!/^GXXE-\d+$/.test(issueKey)) throw new Error('没有找到 GXXE 问题单编号，请确认详情已完整加载后重新点击插件');
+    if (!/^[A-Z][A-Z0-9]{0,31}-\d+$/.test(issueKey)) throw new Error('没有找到问题单编号，请确认详情已完整加载后重新点击插件');
     const direct = [...document.querySelectorAll('.direct-asset input:checked')].map(input => snapshot.assets[Number(input.value)]);
     const native = [...document.querySelectorAll('.native-asset input:checked')].map(input => ({ ...snapshot.nativeAttachments[Number(input.value)], nativeIndex: Number(input.value) }));
     const assets = [...direct, ...native], files = [], results = [];

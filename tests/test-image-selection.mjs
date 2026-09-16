@@ -17,3 +17,11 @@ assert(result.assets.find(a=>a.url.endsWith('comment.png')).selected);
 assert(result.assets.find(a=>a.url.endsWith('large-screenshot.jpg')).selected);
 assert.equal(result.assets.filter(a=>a.selected).length,3);
 console.log('PASS: large-source tiny avatars excluded; small rich-text screenshots, comment images and displayed photos retained.');
+const code=await readFile(new URL('../src/extractor.js',import.meta.url),'utf8');
+for (const key of ['GXXE-10001','QHFG-10002','APP2-123']) {
+ root.querySelectorAll=selector=>selector==='[data-clipboard-text]'?[{getAttribute(){return key;}}]:[];
+ root.innerText='关联 GXXE-99999';
+ const read=()=>vm.runInNewContext(code,{document,location:{href:'https://www.teambition.com/project/a/task/b'},getComputedStyle(){return {visibility:'visible'};},URL});
+ assert.equal(read().issueKey,key);
+ root.querySelectorAll=()=>[];root.innerText=key+' description';assert.equal(read().issueKey,key);
+}
