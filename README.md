@@ -70,3 +70,17 @@ ZIP 兼容性测试使用 macOS 自带的 `unzip`。
 仓库中的问题单编号、文件名和路径均为演示数据。当前实现识别 `GXXE-数字` 格式的问题单，其他编号格式需要修改识别规则。
 
 测试运行 `npm test`（主要模拟 Chrome 接口）和 `npm run check`。自动测试不等同于真实浏览器的目录授权、窗口显示和系统剪贴板验证。
+
+## 目录结构
+
+```text
+assets/icons/  插件图标
+src/           插件页面和运行代码
+scripts/       图标生成、检查和打包工具
+tests/         自动化测试
+manifest.json  Chrome 插件入口配置
+```
+
+安装或重新加载时仍选择项目根目录（包含 `manifest.json` 的目录），不要选择 `src`。
+
+运行 `npm run package` 生成 `dist/TeambitionExporter-版本号.zip`，只包含运行文件、图标和 README。打包使用 Python 3，无需安装第三方依赖。

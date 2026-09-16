@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
-const code=(await readFile(new URL('../save.js',import.meta.url),'utf8')).replace(/^import .*\n/,'');
+const code=(await readFile(new URL('../src/save.js',import.meta.url),'utf8')).replace(/^import .*\n/,'');
 async function setup(path) {
  const elements=Object.fromEntries(['save','status','settings'].map(id=>[id,{textContent:'',disabled:true}]));
  const calls=[];let rejectCopy=false;
  const handle={async isSameEntry(){return true;}};
- const context={URL,location:{href:'chrome-extension://test/save.html?token=sample'},document:{getElementById:id=>elements[id]},
+ const context={URL,location:{href:'chrome-extension://test/src/save.html?token=sample'},document:{getElementById:id=>elements[id]},
   async loadDirectory(){return {handle,rootPath:'/tmp/Exports'};},async storeDirectory(){},
   window:{focus(){},close(){calls.push('close');}},async showDirectoryPicker(){return handle;},
   chrome:{runtime:{async sendMessage(){return {path,displayPath:'Exports/GXXE-1',copied:true};},openOptionsPage(){}}},

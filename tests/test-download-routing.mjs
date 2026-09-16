@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { matchesDownload, ROUTE_KEY } from '../download-match.js';
+import { matchesDownload, ROUTE_KEY } from '../src/download-match.js';
 const now = Date.now(), sourceUrl = 'https://www.teambition.com/project/example/task/example';
 const expectedName = 'Logs__20000101_000000_&data_db.rar';
 const pending = {job:'sampleJob',sourceUrl,expectedName,startedAt:now,expires:now+45000,downloadId:null};
@@ -24,7 +24,7 @@ chrome.runtime.onInstalled={addListener(){}};
 chrome.runtime.openOptionsPage=async()=>{};
 chrome.alarms={onAlarm:{addListener(){}},async create(){},async clear(){}};
 chrome.notifications={onClicked:{addListener(){}},onButtonClicked:{addListener(){}},async create(){},async clear(){}};
-await import('../background.js');
+await import('../src/background.js');
 const determine=item=>new Promise(resolve=>callbacks.determine(item,value=>{order.push('suggest:'+item.id);resolve(value);}));
 await determine(item);
 assert.deepEqual(order,['cancel:42','suggest:42']);
@@ -40,7 +40,7 @@ const suggestion=await determine({id:45,url:blob,filename:'zip-id',byExtensionId
 assert.equal(suggestion.filename,'GXXE-10001/GXXE-10001.zip');
 assert(!order.includes('cancel:45'));
 state.sampleJob={tabId:99,data:{url:sourceUrl,issueKey:'GXXE-10001',nativeAttachments:[{name:expectedName,occurrence:0}]}};
-const invoke=message=>new Promise(resolve=>callbacks.message(message,{id:'test-extension',url:chrome.runtime.getURL('exporter.html?job=sampleJob')},resolve));
+const invoke=message=>new Promise(resolve=>callbacks.message(message,{id:'test-extension',url:chrome.runtime.getURL('src/exporter.html?job=sampleJob')},resolve));
 const response=await invoke({type:'resolve-native-download',job:'sampleJob',index:0});assert(response.token && !response.error);
 const invalid=await invoke({type:'prepare-download',job:'sampleJob',url:blob,filename:'../../evil.zip'});assert(invalid.error);
 console.log('PASS: source matching, cancel-before-filename callback, failed cancellation, archive filename preservation, and path validation.');

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {buildArchive} from '../build-archive.js';
+import {buildArchive} from '../src/build-archive.js';
 import {writeFile,mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';

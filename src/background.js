@@ -53,7 +53,7 @@ chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
 let starting = false;
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (message.type === 'start-selected-export') {
-    if (sender.id !== chrome.runtime.id || sender.url?.split('?')[0] !== chrome.runtime.getURL('save.html')) return;
+    if (sender.id !== chrome.runtime.id || sender.url?.split('?')[0] !== chrome.runtime.getURL('src/save.html')) return;
     (async () => {
       const pending = (await chrome.storage.session.get('pendingSave')).pendingSave;
       if (!pending || pending.token !== message.token) throw new Error('保存窗口已失效，请重新点击插件图标');
@@ -62,7 +62,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     return true;
   }
 
-  const trusted = ['exporter.html', 'offscreen.html'].some(path => sender.url?.startsWith(chrome.runtime.getURL(path)));
+  const trusted = ['src/exporter.html', 'src/offscreen.html'].some(path => sender.url?.startsWith(chrome.runtime.getURL(path)));
   if (sender.id !== chrome.runtime.id || !trusted || message.target === 'offscreen') return;
   if (message.type.startsWith('runner-')) {
     (async () => {
@@ -139,10 +139,10 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
 
 let creatingOffscreen;
 async function ensureOffscreen() {
-  const url = chrome.runtime.getURL('offscreen.html');
+  const url = chrome.runtime.getURL('src/offscreen.html');
   const contexts = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'], documentUrls: [url] });
   if (contexts.length) return;
-  if (!creatingOffscreen) creatingOffscreen = chrome.offscreen.createDocument({ url: 'offscreen.html', reasons: ['BLOBS', 'CLIPBOARD'], justification: '收集问题单文件、写入本次选择的目录并复制文件路径。' }).finally(() => { creatingOffscreen = null; });
+  if (!creatingOffscreen) creatingOffscreen = chrome.offscreen.createDocument({ url: 'src/offscreen.html', reasons: ['BLOBS', 'CLIPBOARD'], justification: '收集问题单文件、写入本次选择的目录并复制文件路径。' }).finally(() => { creatingOffscreen = null; });
   await creatingOffscreen;
 }
 let actionBusy = false;
@@ -161,7 +161,7 @@ export async function exportTab(tab) {
     await logEvent(job, 'background', 'extract.start', { sourceUrl: tab.url, sourceTabId: tab.id });
     const url = new URL(tab.url);
     if (url.protocol !== 'https:' || !['www.teambition.com', 'teambition.com'].includes(url.hostname)) throw new Error('请在 Teambition 网页中打开问题单详情，再点击插件');
-    const results = await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['extractor.js'] });
+    const results = await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['src/extractor.js'] });
     const data = results[0]?.result;
     if (data?.scope !== 'teambition-detail' || !/^GXXE-\d+$/.test(data.issueKey || '') || !data.text?.trim()) throw new Error('当前页面没有打开可识别的问题单详情，请点击一条问题单并等待内容加载');
     await chrome.storage.session.set({ [job]: { data, tabId: tab.id } });
@@ -206,7 +206,7 @@ chrome.action.onClicked.addListener(async tab => {
     const width = Math.min(520, parent.width || 520);
     const height = Math.min(480, parent.height || 480);
     const window = await chrome.windows.create({
-      url: chrome.runtime.getURL('save.html?token=' + token), type: 'popup', focused: true,
+      url: chrome.runtime.getURL('src/save.html?token=' + token), type: 'popup', focused: true,
       width, height,
       left: Math.round((parent.left || 0) + ((parent.width || width) - width) / 2),
       top: Math.round((parent.top || 0) + ((parent.height || height) - height) / 2)

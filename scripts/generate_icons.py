@@ -2,7 +2,8 @@
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 import math
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent / 'assets' / 'icons'
+ROOT.mkdir(parents=True, exist_ok=True)
 S = 4
 N = 128*S
 im = Image.new('RGBA',(N,N))

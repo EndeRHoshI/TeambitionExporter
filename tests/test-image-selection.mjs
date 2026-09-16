@@ -9,7 +9,7 @@ function img(name,{width=24,height=24,natural=581,rich=false,avatar=false,articl
 const images=[img('lADPDg7mW0kl4HPNAkXNAkU_581_581.jpg'),img('face.jpg',{width:240,height:240,avatar:true}),img('small-screenshot.png',{width:43,height:96,rich:true}),img('comment.png',{width:80,height:60,article:true}),img('large-screenshot.jpg',{width:400,height:300})];
 const root={innerText:'GXXE-10001 description',getClientRects(){return [{}];},querySelector(){return {textContent:'Issue title'};},querySelectorAll(selector){return selector==='img'?images:selector==='[data-clipboard-text]'?[{getAttribute(){return 'GXXE-10001';}}]:[];}};
 const document={body:root,title:'Issue',querySelectorAll(selector){return selector==='#root-detail'?[root]:[];}};
-const result=vm.runInNewContext(await readFile(new URL('../extractor.js',import.meta.url),'utf8'),{document,location:{href:'https://www.teambition.com/project/a/task/b'},getComputedStyle(){return {visibility:'visible'};},URL});
+const result=vm.runInNewContext(await readFile(new URL('../src/extractor.js',import.meta.url),'utf8'),{document,location:{href:'https://www.teambition.com/project/a/task/b'},getComputedStyle(){return {visibility:'visible'};},URL});
 assert.equal(result.assets.find(a=>a.url.endsWith('lADPDg7mW0kl4HPNAkXNAkU_581_581.jpg')).selected,false);
 assert(!result.assets.some(a=>a.url.endsWith('face.jpg')));
 assert(result.assets.find(a=>a.url.endsWith('small-screenshot.png')).selected);

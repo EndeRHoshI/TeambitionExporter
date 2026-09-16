@@ -38,7 +38,7 @@ export function finishFeedback(job, { title, error, partial = false }) {
     if (error || partial) {
       try {
         await chrome.notifications.create(NOTICE, {
-          type: 'basic', iconUrl: chrome.runtime.getURL('icon128.png'),
+          type: 'basic', iconUrl: chrome.runtime.getURL('assets/icons/icon128.png'),
           title: partial ? 'Teambition：部分附件未取得' : 'Teambition 导出失败',
           message: String(sanitize(error || '已保存文件，但有附件缺失。点击查看详情和排查日志。')).slice(0, 220),
           buttons: [{ title: '查看详情和日志' }], requireInteraction: false

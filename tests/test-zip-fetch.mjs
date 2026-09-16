@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { createZip, crc32 } from '../zip.js';
-import { fetchFile } from '../fetch-file.js';
+import { createZip, crc32 } from '../src/zip.js';
+import { fetchFile } from '../src/fetch-file.js';
 import { writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {installFeedbackHandlers,resetFeedback,finishFeedback} from '../feedback.js';
+import {installFeedbackHandlers,resetFeedback,finishFeedback} from '../src/feedback.js';
 const state={},handlers={},alarms=new Map(),badges=[],notices=[];
 let now=1000000,opened=0,rejectNotifications=false,rejectTimer=false;
 const timers = new Map(); let nextTimer = 0;

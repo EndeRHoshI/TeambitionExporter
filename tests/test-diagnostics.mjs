@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {logEvent,readDiagnostics,sanitize} from '../diagnostics.js';
+import {logEvent,readDiagnostics,sanitize} from '../src/diagnostics.js';
 const store={}; let failStorage=false;
 globalThis.chrome={storage:{session:{async set(value){if(failStorage)throw Error('quota');Object.assign(store,value);},async get(key){if(failStorage)throw Error('unavailable');return key==null?store:{[key]:store[key]};}}},runtime:{getManifest(){return {version:'1.0.0'};}}};
 const signed='https://user:pass@example.com/file.rar?Signature=secret&token=private#fragment';

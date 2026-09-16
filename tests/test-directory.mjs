@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {checkDirectory,saveArchive} from '../directory-store.js';
+import {checkDirectory,saveArchive} from '../src/directory-store.js';
 const missing=()=>Object.assign(Error('missing'),{name:'NotFoundError'});
 const files=new Map();let allow=true, failWrite=false, aborted=false;
 const directory={async getFileHandle(name,opts={}){
@@ -23,7 +23,7 @@ const relative=await saveArchive({...config,rootPath:''},'GXXE-10001','GXXE-1000
 assert.equal(relative.path,null);assert(relative.relativePath.startsWith('GXXE-10001/'));assert(relative.displayPath.startsWith('客户资料/'));assert.equal(relative.pathSource,'relative-only');
 console.log('PASS: arbitrary directory names and handle-only authorization work without a configured absolute path.');
 
-const {saveExport} = await import('../directory-store.js');
+const {saveExport} = await import('../src/directory-store.js');
 let failExpanded = false;
 function fakeDirectory(name) {
  const nodes = new Map();

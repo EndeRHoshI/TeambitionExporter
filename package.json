@@ -8,6 +8,7 @@
   },
   "scripts": {
     "test": "node --test tests/*.mjs",
-    "check": "node --check background.js && node --check diagnostics.js && node --check download-match.js && node --check extractor.js && node --check exporter.js && node --check zip.js && node --check fetch-file.js && node --check directory-store.js && node --check offscreen.js && node --check options.js && node --check build-archive.js && node --check feedback.js && node --check save.js"
+    "check": "node scripts/check.mjs",
+    "package": "python3 scripts/package.py"
   }
 }
