@@ -1,11 +1,12 @@
 import { logEvent, readDiagnostics, diagnosticPrefix } from './diagnostics.js';
+import { createZip } from './zip.js';
+import { fetchFile } from './fetch-file.js';
 
 const $ = id => document.getElementById(id);
-let snapshot;
-let absolutePath = '';
 const job = new URL(location.href).searchParams.get('job');
 const log = (event, details, level) => logEvent(job, 'export-page', event, details, level);
-let diagnosticFolder = '';
+const safeName = value => (value || 'file').normalize('NFKC').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/^\.+|[. ]+$/g, '').slice(0, 120) || 'file';
+let snapshot, absolutePath = '', issueKey = '', busy = false;
 let refreshQueue = Promise.resolve();
 function refreshDiagnostics() {
   refreshQueue = refreshQueue.catch(() => {}).then(async () => {
@@ -19,184 +20,147 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'session' && Object.keys(changes).some(key => key.startsWith(diagnosticPrefix(job)))) void refreshDiagnostics();
 });
 window.addEventListener('error', event => { void log('page.error', { message: event.message, stack: event.error?.stack }, 'error'); });
-window.addEventListener('unhandledrejection', event => { void log('page.unhandled-rejection', { message: event.reason?.message || String(event.reason), stack: event.reason?.stack }, 'error'); });
+window.addEventListener('unhandledrejection', event => { void log('page.unhandled-rejection', { message: event.reason?.message || String(event.reason) }, 'error'); });
 
-async function saveDiagnostics() {
-  await log('diagnostics.save-start', { folder: diagnosticFolder });
-  const report = await readDiagnostics(job);
-  const filename = diagnosticFolder ? `${diagnosticFolder}/debug-log.json` : `Teambition/diagnostics-${job}.json`;
-  const item = await saveText(JSON.stringify(report, null, 2), filename, 'application/json');
-  $('diagnostics-status').textContent = `排查日志已保存：${item.filename}`;
-  return item;
-}
-$('copy-diagnostics').addEventListener('click', async () => {
-  await refreshDiagnostics();
+async function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
   try {
-    await navigator.clipboard.writeText($('diagnostics-text').value);
-    $('diagnostics-status').textContent = '诊断信息已复制，直接粘贴给我即可。';
-  } catch {
-    $('diagnostics-panel').open = true;
-    $('diagnostics-text').select();
-    $('diagnostics-status').textContent = '请按 Command+C（Windows 按 Ctrl+C）复制选中的诊断信息。';
-  }
-});
-$('save-diagnostics').addEventListener('click', async () => {
-  $('save-diagnostics').disabled = true;
-  try { await saveDiagnostics(); }
-  catch (error) {
-    await log('diagnostics.save-failed', { message: error.message }, 'error');
-    $('diagnostics-status').textContent = '日志文件保存失败，请点击“一键复制诊断信息”。';
-  } finally { $('save-diagnostics').disabled = false; }
-});
-const safeName = value => (value || '').normalize('NFKC').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/^\.+|[. ]+$/g, '').slice(0, 100) || 'file';
-
-function assetName(asset, index) {
-  let tail = new URL(asset.url).pathname.split('/').pop();
-  try { tail = decodeURIComponent(tail); } catch {}
-  let name = /\.[a-z\d]{1,8}$/i.test(asset.name) ? asset.name : tail || asset.name;
-  if (!/\.[a-z\d]{1,8}$/i.test(name || '')) name = `${name || asset.kind}.bin`;
-  return `${String(index + 1).padStart(3, '0')}-${safeName(name)}`;
-}
-
-async function download(url, filename) {
-  await log('download.start', { url, filename });
-  const id = await chrome.downloads.download({ url, filename, saveAs: false, conflictAction: 'uniquify' });
-  await log('download.created', { downloadId: id, filename });
-  return waitDownload(id);
-}
-
-async function waitDownload(id) {
-  const deadline = Date.now() + 10 * 60 * 1000;
-  let lastState = '', lastProgressAt = 0;
-  while (Date.now() < deadline) {
-    const [item] = await chrome.downloads.search({ id });
-    if (!item) throw new Error('Chrome 下载记录不可用');
-    const state = `${item.state}:${item.paused}:${item.danger}:${item.error || ''}`;
-    if (state !== lastState || Date.now() - lastProgressAt > 30000) {
-      await log('download.state', { downloadId: id, state: item.state, paused: item.paused, danger: item.danger, error: item.error, bytesReceived: item.bytesReceived, totalBytes: item.totalBytes, filename: item.filename, mime: item.mime }, item.state === 'interrupted' ? 'error' : 'info');
-      lastState = state; lastProgressAt = Date.now();
+    const prepared = await chrome.runtime.sendMessage({ type: 'prepare-download', job, url, filename });
+    if (!prepared?.ok) throw new Error(prepared?.error || '无法设置归档文件名');
+    await log('archive.download-start', { filename, bytes: blob.size });
+    const id = await chrome.downloads.download({ url, filename, saveAs: false, conflictAction: 'uniquify' });
+    const deadline = Date.now() + 10 * 60 * 1000;
+    let previous = '';
+    while (Date.now() < deadline) {
+      const [item] = await chrome.downloads.search({ id });
+      if (!item) throw new Error('Chrome 下载记录不可用');
+      const state = `${item.state}:${item.filename}:${item.error || ''}`;
+      if (state !== previous) { await log('archive.download-state', { id, state: item.state, filename: item.filename, error: item.error }); previous = state; }
+      if (item.state === 'complete') return item;
+      if (item.state === 'interrupted') throw new Error(item.error || 'ZIP 下载已中断');
+      await new Promise(resolve => setTimeout(resolve, 400));
     }
-    if (item.state === 'complete') return item;
-    if (item.state === 'interrupted') throw new Error(item.error || '下载中断');
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await chrome.downloads.cancel(id).catch(() => {});
+    throw new Error('保存 ZIP 超时');
+  } finally {
+    await chrome.runtime.sendMessage({ type: 'forget-download', url }).catch(() => {});
+    URL.revokeObjectURL(url);
   }
-  await chrome.downloads.cancel(id).catch(() => {});
-  await log('download.timeout', { downloadId: id }, 'error');
-  throw new Error('下载超过 10 分钟，已请求取消；可能存在未完成的临时文件');
 }
 
-async function downloadNative(index, filename) {
-  await log('native.start', { index, filename });
-  const response = await chrome.runtime.sendMessage({ type: 'start-native-download', job, index, filename });
-  if (!response || response.error) throw new Error(response?.error || '无法启动日志下载');
-  await log('native.waiting-for-download', { index, filename });
+async function resolveNative(index) {
+  const response = await chrome.runtime.sendMessage({ type: 'resolve-native-download', job, index });
+  if (!response || response.error) throw new Error(response?.error || '无法准备日志附件');
   const deadline = Date.now() + 45000;
   while (Date.now() < deadline) {
     const pending = (await chrome.storage.session.get('pendingNativeDownload')).pendingNativeDownload;
-    if (!pending || pending.token !== response.token) throw new Error('下载跟踪已失效，请重新提取');
-    if (pending.downloadId != null) {
-      const item = await waitDownload(pending.downloadId);
-      const actual = item.filename.replace(/\\/g, '/');
-      if (!actual.endsWith('/' + filename)) throw new Error(`文件保存位置与导出目录不同：${item.filename}`);
-      return item;
-    }
-    await new Promise(resolve => setTimeout(resolve, 300));
+    if (!pending || pending.token !== response.token) throw new Error('附件下载跟踪已失效');
+    if (pending.status === 'failed') throw new Error(pending.error);
+    if (pending.status === 'resolved') return pending.url;
+    await new Promise(resolve => setTimeout(resolve, 200));
   }
-  throw new Error('未匹配到日志下载记录。请检查是否登录失效、浏览器阻止下载，或服务器返回的文件名发生变化。');
+  throw new Error('没有捕获到附件下载地址，请保留原问题单并复制诊断信息');
 }
 
-async function saveText(text, filename, type) {
-  const url = URL.createObjectURL(new Blob([text], { type }));
-  try { return await download(url, filename); }
-  finally { URL.revokeObjectURL(url); }
+function assetName(asset, index) {
+  let name = asset.name;
+  if (!/\.[a-z\d]{1,8}$/i.test(name || '')) {
+    let tail = new URL(asset.url).pathname.split('/').pop();
+    try { tail = decodeURIComponent(tail); } catch {}
+    name = tail || name || 'file';
+  }
+  if (!/\.[a-z\d]{1,8}$/i.test(name)) name += '.bin';
+  return `${String(index + 1).padStart(3, '0')}-${safeName(name)}`;
 }
-
 async function copyPath() {
-  try {
-    await navigator.clipboard.writeText(absolutePath);
-    await log('clipboard.path-copied', { path: absolutePath });
-  } catch (error) {
-    await log('clipboard.failed', { message: error.message }, 'warn');
-    throw error;
-  }
+  try { await navigator.clipboard.writeText(absolutePath); await log('clipboard.path-copied', { path: absolutePath }); }
+  catch (error) { await log('clipboard.failed', { message: error.message }, 'warn'); throw error; }
 }
-
 $('copy').addEventListener('click', async () => {
-  try { await copyPath(); $('status').textContent += '\n已复制目录绝对路径。'; }
-  catch { $('path').select(); $('status').textContent += '\n自动复制失败，请按 Command+C（Windows 按 Ctrl+C）复制选中的路径。'; }
+  try { await copyPath(); $('status').textContent += '\nZIP 路径已复制。'; }
+  catch { $('path').select(); $('status').textContent += '\n请按 Command+C（Windows 按 Ctrl+C）复制路径。'; }
+});
+$('copy-diagnostics').addEventListener('click', async () => {
+  await refreshDiagnostics();
+  try { await navigator.clipboard.writeText($('diagnostics-text').value); $('diagnostics-status').textContent = '诊断信息已复制，粘贴给我即可。'; }
+  catch { $('diagnostics-panel').open = true; $('diagnostics-text').select(); $('diagnostics-status').textContent = '请按 Command+C（Windows 按 Ctrl+C）复制。'; }
+});
+$('save-diagnostics').addEventListener('click', async () => {
+  try {
+    if (!issueKey) throw new Error('尚未识别问题单编号，请直接复制诊断信息');
+    const report = await readDiagnostics(job);
+    const item = await saveBlob(new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }), `${issueKey}/debug-log.json`);
+    $('diagnostics-status').textContent = `已保存：${item.filename}`;
+  } catch (error) { $('diagnostics-status').textContent = error.message + '；也可以直接复制诊断信息。'; }
 });
 
 $('export').addEventListener('click', async () => {
-  $('export').disabled = true;
-  $('copy').disabled = true;
-  absolutePath = '';
-  $('path').value = '';
-  $('save-diagnostics').disabled = true;
-  diagnosticFolder = '';
+  if (busy) return;
+  busy = true;
+  $('export').disabled = true; $('copy').disabled = true; $('save-diagnostics').disabled = true;
+  absolutePath = ''; $('path').value = '';
   const startedAt = Date.now();
   try {
-    const selected = [...document.querySelectorAll('.asset:not(.native-asset) input:checked')].map(input => snapshot.assets[Number(input.value)]);
-    const taskId = new URL(snapshot.url).pathname.match(/\/task\/([^/]+)/)?.[1] || 'task';
-    const folder = `Teambition/${safeName(taskId)}-${new Date().toISOString().replace(/[:.]/g, '-')}-${crypto.randomUUID().slice(0, 6)}`;
-    diagnosticFolder = folder;
-    await log('export.start', { folder, selectedAssets: selected.length, selectedNativeAttachments: document.querySelectorAll('.native-asset input:checked').length });
-    const results = [];
-    for (let index = 0; index < selected.length; index++) {
-      const asset = selected[index];
-      const local = `assets/${assetName(asset, index)}`;
-      $('status').textContent = `正在下载 ${index + 1}/${selected.length}：${asset.name || local}`;
+    if (!/^GXXE-\d+$/.test(issueKey)) throw new Error('没有找到 GXXE 问题单编号，请确认详情已完整加载后重新点击插件');
+    const direct = [...document.querySelectorAll('.direct-asset input:checked')].map(input => snapshot.assets[Number(input.value)]);
+    const native = [...document.querySelectorAll('.native-asset input:checked')].map(input => ({ ...snapshot.nativeAttachments[Number(input.value)], nativeIndex: Number(input.value) }));
+    const assets = [...direct, ...native], files = [], results = [];
+    let totalBytes = 0;
+    await log('export.start', { issueKey, direct: direct.length, native: native.length });
+    for (let i = 0; i < assets.length; i++) {
+      const asset = assets[i];
+      const name = asset.nativeIndex != null ? `${String(i + 1).padStart(3, '0')}-${safeName(asset.name)}` : assetName(asset, i);
+      const local = `assets/${name}`;
       try {
-        const item = await download(asset.url, `${folder}/${local}`);
-        results.push({ ...asset, status: 'complete', local, actualPath: item.filename, mime: item.mime, bytes: item.fileSize });
+        $('status').textContent = `正在收集 ${i + 1}/${assets.length}：${asset.name || name}`;
+        const url = asset.nativeIndex != null ? await resolveNative(asset.nativeIndex) : asset.url;
+        await log('asset.fetch-start', { name, url });
+        let lastProgress = 0;
+        const result = await fetchFile(url, { maxBytes: 256 * 1024 * 1024 - totalBytes, expectedName: name,
+          onProgress(received, total) {
+            $('status').textContent = `正在收集 ${i + 1}/${assets.length}：${name}\n${Math.round(received / 1024)} KB${total ? ' / ' + Math.round(total / 1024) + ' KB' : ''}`;
+            if (Date.now() - lastProgress > 30000) { lastProgress = Date.now(); void log('asset.fetch-progress', { name, received, total }); }
+          }
+        });
+        totalBytes += result.bytes;
+        files.push({ name: `${issueKey}/${local}`, data: result.data });
+        results.push({ name: asset.name || name, status: 'complete', local, bytes: result.bytes, mime: result.mime });
+        await log('asset.collected', { name, bytes: result.bytes, mime: result.mime });
       } catch (error) {
-        await log('asset.failed', { filename: local, message: error.message }, 'error');
-        results.push({ ...asset, status: 'failed', error: error.message });
+        results.push({ name: asset.name || name, status: 'failed', error: error.message });
+        await log('asset.failed', { name, message: error.message }, 'error');
       }
     }
-    const native = [...document.querySelectorAll('.native-asset input:checked')].map(input => Number(input.value));
-    for (let i = 0; i < native.length; i++) {
-      const index = native[i];
-      const asset = snapshot.nativeAttachments[index];
-      const local = `assets/${String(selected.length + i + 1).padStart(3, '0')}-${safeName(asset.name)}`;
-      $('status').textContent = `正在自动下载日志/附件 ${i + 1}/${native.length}：${asset.name}`;
-      try {
-        const item = await downloadNative(index, `${folder}/${local}`);
-        results.push({ ...asset, status: 'complete', local, actualPath: item.filename, mime: item.mime, bytes: item.fileSize });
-      } catch (error) {
-        await log('native.failed', { filename: local, message: error.message }, 'error');
-        results.push({ ...asset, status: 'failed', error: error.message });
-      }
+    const failed = results.filter(result => result.status === 'failed').length;
+    const unresolved = snapshot.unresolvedAttachments || [];
+    const incomplete = failed > 0 || unresolved.length > 0;
+    const archiveName = `${issueKey}${incomplete ? '-不完整' : ''}.zip`;
+    const list = results.map(result => result.status === 'complete' ? `- [${result.local}](${encodeURI(result.local)})` : `- 未取得：${result.name} — ${result.error}`).join('\n');
+    const md = `# ${issueKey} ${snapshot.title}\n\n来源：${snapshot.url}\n\n${incomplete ? '**本次导出不完整，请查看附件清单与排查日志。**\n\n' : ''}## 问题描述\n\n${$('text').value}\n\n## 附件\n\n${list || '没有选择附件。'}\n\n${unresolved.map(a => '- 无法识别的附件：' + a.name + ' — ' + a.reason).join('\n')}\n`;
+    files.push({ name: `${issueKey}/issue.md`, data: md });
+    // Export results contain local paths, not expiring signed URLs.
+    files.push({ name: `${issueKey}/manifest.json`, data: JSON.stringify({ version: chrome.runtime.getManifest().version, issueKey, title: snapshot.title, url: snapshot.url, capturedAt: snapshot.capturedAt, text: $('text').value, complete: !incomplete, exportResults: results, unresolvedAttachments: unresolved, limitations: snapshot.limitations }, null, 2) });
+    await log('archive.ready', { issueKey, files: files.length, totalBytes, failed, unresolved: unresolved.length });
+    files.push({ name: `${issueKey}/debug-log.json`, data: JSON.stringify(await readDiagnostics(job), null, 2) });
+    $('status').textContent = '正在生成 ZIP，只会保存这一个文件…';
+    const zip = createZip(files);
+    const item = await saveBlob(zip, `${issueKey}/${archiveName}`);
+    absolutePath = item.filename;
+    $('path').value = absolutePath; $('copy').disabled = false;
+    await log('export.complete', { path: absolutePath, bytes: zip.size, failed, elapsedMs: Date.now() - startedAt });
+    $('status').textContent = `${incomplete ? '已保存不完整归档' : '已保存完整归档'}：${archiveName}\n附件成功 ${results.length - failed} 个，失败 ${failed} 个。解压后得到 ${issueKey} 文件夹。`;
+    if (!absolutePath.replace(/\\/g, '/').includes(`/${issueKey}/`)) {
+      $('status').textContent += '\n浏览器改变了保存位置；压缩包内仍按问题单编号归档。';
+      await log('archive.location-changed', { requested: `${issueKey}/${archiveName}`, actual: absolutePath }, 'warn');
     }
-    $('status').textContent = '正在保存问题描述与导出清单…';
-    const text = $('text').value;
-    const missing = snapshot.unresolvedAttachments || [];
-    const summary = results.map(asset => asset.status === 'complete'
-      ? `- [${asset.local}](${encodeURI(asset.local)})`
-      : `- 下载失败：${asset.name || asset.url} — ${asset.error}`).join('\n') || '未选择附件。';
-    const md = `# ${snapshot.title.replace(/[\r\n]/g, ' ')}\n\n来源：${snapshot.url}\n\n提取时间：${snapshot.capturedAt}\n\n## 页面文本\n\n${text}\n\n## 本地附件\n\n${summary}\n\n## 未下载的按钮型附件\n\n${missing.map(a => '- ' + a.name + '：' + a.reason).join('\n') || '未识别到。'}\n\n## 提取范围与限制\n\n${snapshot.limitations.map(line => '- ' + line).join('\n')}\n`;
-    await saveText(JSON.stringify({ ...snapshot, text, exportResults: results }, null, 2), `${folder}/manifest.json`, 'application/json');
-    const item = await saveText(md, `${folder}/issue.md`, 'text/markdown;charset=utf-8');
-    absolutePath = item.filename.replace(/[/\\][^/\\]+$/, '');
-    if (!absolutePath || absolutePath === item.filename) throw new Error('Chrome 未返回有效的绝对目录路径');
-    $('path').value = absolutePath;
-    $('copy').disabled = false;
-    const failed = results.filter(asset => asset.status === 'failed').length;
-    await log('export.complete', { path: absolutePath, successful: results.length - failed, failed, unresolved: missing.length, elapsedMs: Date.now() - startedAt });
-    $('status').textContent = `已保存问题单文本。附件成功 ${results.length - failed} 个，失败 ${failed} 个。${failed ? '请查看 manifest.json 中的失败原因。' : ''}`;
-    if (missing.length) $('status').textContent += `\n另有 ${missing.length} 个附件无法识别下载方式，详情已记录。`;
-    try { await copyPath(); $('status').textContent += '\n目录绝对路径已复制，可直接粘贴给助手。'; }
-    catch { $('status').textContent += '\n自动复制未成功，请点击“重新复制路径”。'; }
+    try { await copyPath(); $('status').textContent += '\nZIP 绝对路径已复制，可直接粘贴给我。'; }
+    catch { $('status').textContent += '\n请点击“复制 ZIP 路径”。'; }
+    $('diagnostics-status').textContent = '打包前的排查日志已包含在 ZIP 中；“复制诊断信息”可取得包含最终保存结果的最新日志。';
   } catch (error) {
-    await log('export.failed', { message: error.message, stack: error.stack, elapsedMs: Date.now() - startedAt }, 'error');
-    $('status').textContent = `导出未完成：${error.message}\n已下载的文件可能保留在 Chrome 下载目录的 Teambition 子目录中。`;
+    await log('export.failed', { message: error.message, stack: error.stack }, 'error');
+    $('status').textContent = `导出失败：${error.message}\n请点击“一键复制诊断信息”发给我。`;
   } finally {
-    try { await saveDiagnostics(); }
-    catch (error) {
-      await log('diagnostics.save-failed', { message: error.message }, 'error');
-      $('diagnostics-status').textContent = '排查日志未能自动保存，请点击“一键复制诊断信息”。';
-    }
-    $('save-diagnostics').disabled = false;
-    $('export').disabled = false;
+    busy = false; $('export').disabled = false; $('save-diagnostics').disabled = false;
   }
 });
 
@@ -204,49 +168,28 @@ $('export').addEventListener('click', async () => {
   await log('page.ready', { userAgent: navigator.userAgent, version: chrome.runtime.getManifest().version });
   await refreshDiagnostics();
   const entry = (await chrome.storage.session.get(job))[job];
-  if (!entry || entry.error) {
-    $('title').textContent = '无法提取';
-    $('status').textContent = entry?.error || '提取快照已失效，请在问题单页面重新点击插件。';
-    await log('snapshot.unavailable', { message: $('status').textContent }, 'error');
-    return;
-  }
-  snapshot = entry.data;
-  $('title').textContent = snapshot.title;
+  if (!entry || entry.error) throw new Error(entry?.error || '提取快照已失效，请在问题单页面重新点击插件');
+  snapshot = entry.data; issueKey = snapshot.issueKey || '';
+  $('title').textContent = `${issueKey || '未识别编号'} · ${snapshot.title}`;
   $('source').textContent = snapshot.url;
-  $('scope').textContent = snapshot.scope === 'teambition-detail'
-    ? '提取范围：Teambition 问题单详情，包含已加载字段和动态。'
-    : snapshot.scope === 'visible-dialog'
-    ? '提取范围：当前可见弹窗。请核对是否为问题单详情。'
-    : '提取范围：整个页面。可能包含侧栏和其他任务，请核对文本并删除无关内容。';
+  $('scope').textContent = `一次保存一个 ZIP，文件按 ${issueKey || '问题单编号'} 文件夹归档。`;
   $('text').value = snapshot.text;
-  snapshot.assets.forEach((asset, index) => {
-    const label = document.createElement('label');
-    label.className = 'asset';
-    const input = document.createElement('input');
-    input.type = 'checkbox'; input.value = index; input.checked = asset.selected;
-    const text = document.createTextNode(` ${asset.kind} · ${asset.name || assetName(asset, index)}`);
-    const url = document.createElement('span'); url.className = 'url'; url.textContent = asset.url;
-    label.append(input, text, url); $('assets').append(label);
-  });
-  if (!snapshot.assets.length && !snapshot.nativeAttachments?.length) $('assets').textContent = '未识别到图片或可下载附件。';
-  (snapshot.nativeAttachments || []).forEach((asset, index) => {
-    const label = document.createElement('label'); label.className = 'asset native-asset';
-    const input = document.createElement('input'); input.type = 'checkbox'; input.value = index; input.checked = true;
-    label.append(input, document.createTextNode(` 自动下载日志/附件 · ${asset.name}`));
-    $('assets').append(label);
-  });
+  for (const [kind, assets] of [['direct', snapshot.assets], ['native', snapshot.nativeAttachments || []]]) {
+    assets.forEach((asset, index) => {
+      const label = document.createElement('label'); label.className = `asset ${kind}-asset`;
+      const input = document.createElement('input'); input.type = 'checkbox'; input.value = index; input.checked = kind === 'native' || asset.selected;
+      label.append(input, document.createTextNode(` ${kind === 'native' ? '日志/附件' : asset.kind} · ${asset.name || assetName(asset, index)}`));
+      $('assets').append(label);
+    });
+  }
   for (const asset of snapshot.unresolvedAttachments || []) {
-    const warning = document.createElement('p');
-    warning.textContent = `未取得下载地址：${asset.name}。${asset.reason}`;
-    $('assets').append(warning);
+    const warning = document.createElement('p'); warning.textContent = `无法识别：${asset.name}。${asset.reason}`; $('assets').append(warning);
   }
   $('export').disabled = false;
   if (new URL(location.href).searchParams.get('auto') === '1') {
-    history.replaceState(null, '', `exporter.html?job=${encodeURIComponent(job)}`);
-    $('export').click();
+    history.replaceState(null, '', `exporter.html?job=${encodeURIComponent(job)}`); $('export').click();
   }
 })().catch(async error => {
-  $('status').textContent = `页面初始化失败：${error.message}。请复制诊断信息发给我。`;
-  await log('page.init-failed', { message: error.message, stack: error.stack }, 'error');
-  await refreshDiagnostics();
+  $('title').textContent = '无法提取'; $('status').textContent = error.message;
+  await log('page.init-failed', { message: error.message, stack: error.stack }, 'error'); await refreshDiagnostics();
 });

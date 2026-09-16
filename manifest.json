@@ -1,9 +1,45 @@
 {
   "manifest_version": 3,
   "name": "Teambition 本地问题单导出",
-  "version": "0.3.0",
-  "description": "预览并导出当前问题单的已加载文本、图片和附件，复制本地目录路径。",
-  "permissions": ["activeTab", "scripting", "downloads", "clipboardWrite", "storage"],
-  "action": { "default_title": "提取当前 Teambition 问题单" },
-  "background": { "service_worker": "background.js", "type": "module" }
+  "version": "1.0.0",
+  "description": "点击图标在后台打包问题单，保存到你选择并授权的目录并复制 文件夹路径。",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "downloads",
+    "clipboardWrite",
+    "storage",
+    "offscreen",
+    "alarms",
+    "notifications"
+  ],
+  "action": {
+    "default_title": "提取当前 Teambition 问题单",
+    "default_icon": {
+      "16": "icon16.png",
+      "24": "icon24.png",
+      "32": "icon32.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "host_permissions": [
+    "https://www.teambition.com/*",
+    "https://teambition-file.oss-cn-zhangjiakou.aliyuncs.com/*"
+  ],
+  "minimum_chrome_version": "116",
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  },
+  "icons": {
+    "16": "icon16.png",
+    "32": "icon32.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
 }

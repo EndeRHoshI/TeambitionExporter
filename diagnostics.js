@@ -21,7 +21,8 @@ export async function logEvent(job, source, event, details = {}, level = 'info')
   if (memory.size > 1000) memory.delete(memory.keys().next().value);
   try { await chrome.storage.session.set({ [key]: entry }); }
   catch (error) { console.warn('诊断日志暂存失败', sanitize(error.message)); }
-  console[level === 'error' ? 'error' : 'info']('[Teambition 导出]', entry);
+  // Chrome's extension error list stringifies object arguments as [object Object].
+  console[level === 'error' ? 'error' : 'info'](`[Teambition 导出] ${JSON.stringify(entry)}`);
 }
 
 export async function readDiagnostics(job) {

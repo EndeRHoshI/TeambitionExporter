@@ -1,46 +1,56 @@
 import assert from 'node:assert/strict';
 import { matchesDownload, ROUTE_KEY } from '../download-match.js';
-const now = Date.now();
-const sourceUrl = 'https://www.teambition.com/project/example/task/example';
-const expectedName = 'Logs__20260916_103825_&data_db.rar';
-const pending = {sourceUrl, expectedName, startedAt:now, expires:now+45000, downloadId:null,filename:'Teambition/test/assets/001-log.rar'};
-const item = {id:42,filename:'/Downloads/'+expectedName,startTime:new Date(now).toISOString(),referrer:sourceUrl,url:'https://files.example.test/download'};
+const now = Date.now(), sourceUrl = 'https://www.teambition.com/project/example/task/example';
+const expectedName = 'Logs__20000101_000000_&data_db.rar';
+const pending = {job:'sampleJob',sourceUrl,expectedName,startedAt:now,expires:now+45000,downloadId:null};
+const item = {id:42,filename:'/Downloads/'+expectedName,startTime:new Date(now).toISOString(),referrer:sourceUrl,url:'https://teambition-file.oss-cn-zhangjiakou.aliyuncs.com/example.rar'};
 assert(matchesDownload(item,pending,now));
-assert(!matchesDownload({...item,filename:'another.rar'},pending,now));
-assert(!matchesDownload({...item,referrer:'https://other.example/'},pending,now));
-assert(!matchesDownload({...item,referrer:''},pending,now));
-assert(matchesDownload({...item,referrer:'',url:'https://teambition-file.oss-cn-zhangjiakou.aliyuncs.com/test.rar'},pending,now));
-assert(!matchesDownload({...item,referrer:'',url:'https://teambition.com.evil.example/test.rar'},pending,now));
+for (const changed of [{filename:'another.rar'},{referrer:'https://other.example/'},{startTime:new Date(now-60000).toISOString()},{byExtensionId:'another-extension'},{startTime:'invalid'}]) assert(!matchesDownload({...item,...changed},pending,now));
 assert(!matchesDownload(item,{...pending,expires:now-1},now));
 assert(!matchesDownload(item,{...pending,downloadId:41},now));
-assert(!matchesDownload({...item,startTime:new Date(now-60000).toISOString()},pending,now));
-assert(!matchesDownload({...item,byExtensionId:'another-extension'},pending,now));
-assert(!matchesDownload({...item,startTime:'invalid'},pending,now));
-assert(matchesDownload({...item,filename:'C:\\Users\\Tester\\Downloads\\'+expectedName},pending,now));
-const state = {[ROUTE_KEY]:pending};
-const callbacks = {};
-globalThis.chrome = {
- downloads:{onDeterminingFilename:{addListener(fn){callbacks.determine=fn;}}},
- storage:{session:{async get(key){return {[key]:state[key]};},async set(value){Object.assign(state,value);},async remove(key){delete state[key];}}},
+assert(matchesDownload({...item,referrer:''},pending,now));
+assert(!matchesDownload({...item,referrer:'',url:'https://teambition.com.evil.example/test.rar'},pending,now));
+const state = {[ROUTE_KEY]:pending}, callbacks = {}, order = [];
+let failCancel=false, injection;
+globalThis.chrome={
+ downloads:{onDeterminingFilename:{addListener(fn){callbacks.determine=fn;}},async cancel(id){order.push('cancel:'+id);if(failCancel)throw Error('cancel rejected');}},
+ storage:{session:{async get(key){return key===null?state:{[key]:state[key]};},async set(value){Object.assign(state,value);},async remove(key){delete state[key];}}},
  runtime:{id:'test-extension',getURL:path=>'chrome-extension://test-extension/'+path,onMessage:{addListener(fn){callbacks.message=fn;}}},
  action:{onClicked:{addListener(fn){callbacks.action=fn;}}},
- scripting:{async executeScript(options){
-   assert.equal(options.target.tabId,99);
-   assert.equal(options.args[1],expectedName);
-   return [{result:true}];
- }}
+ scripting:{async executeScript(options){injection=options;assert.equal(options.target.tabId,99);assert.equal(options.args[2],expectedName);return [{result:true}];}}
 };
+chrome.runtime.onStartup={addListener(){}};
+chrome.runtime.onInstalled={addListener(){}};
+chrome.runtime.openOptionsPage=async()=>{};
+chrome.alarms={onAlarm:{addListener(){}},async create(){},async clear(){}};
+chrome.notifications={onClicked:{addListener(){}},onButtonClicked:{addListener(){}},async create(){},async clear(){}};
 await import('../background.js');
-const suggestion = await new Promise(resolve => callbacks.determine(item,resolve));
-assert.equal(suggestion.filename,pending.filename);
-assert.equal(state[ROUTE_KEY].downloadId,42);
-const duplicate = await new Promise(resolve => callbacks.determine({...item,id:43},resolve));
-assert.equal(duplicate,undefined);
-state.sampleJob={tabId:99,data:{url:sourceUrl,nativeAttachments:[{name:expectedName,occurrence:0}]}};
-const invoke = message => new Promise(resolve=>callbacks.message(message,{id:'test-extension',url:chrome.runtime.getURL('exporter.html?job=sampleJob')},resolve));
-const response=await invoke({type:'start-native-download',job:'sampleJob',index:0,filename:'Teambition/test/assets/001-log.rar'});
-assert(response.token && !response.error);
-assert.equal(state[ROUTE_KEY].expectedName,expectedName);
-const busy=await invoke({type:'start-native-download',job:'sampleJob',index:0,filename:'Teambition/test/assets/002-log.rar'});
-assert(busy.error);
-console.log('16 checks passed: filename/source/time matching, unrelated-download rejection, one-shot routing, and native-download start.');
+const determine=item=>new Promise(resolve=>callbacks.determine(item,value=>{order.push('suggest:'+item.id);resolve(value);}));
+await determine(item);
+assert.deepEqual(order,['cancel:42','suggest:42']);
+assert.equal(state[ROUTE_KEY].status,'resolved');
+assert.equal(state[ROUTE_KEY].url,item.url);
+await determine({...item,id:43});assert(!order.includes('cancel:43'));
+state[ROUTE_KEY]={...pending};failCancel=true;
+await determine({...item,id:44});assert.equal(state[ROUTE_KEY].status,'failed');
+assert.equal(state[ROUTE_KEY].url,undefined);failCancel=false;
+const blob='blob:chrome-extension://test-extension/zip-id';
+state['prepared-download:'+blob]={job:'sampleJob',filename:'GXXE-10001/GXXE-10001.zip',expires:now+60000};
+const suggestion=await determine({id:45,url:blob,filename:'zip-id',byExtensionId:'test-extension'});
+assert.equal(suggestion.filename,'GXXE-10001/GXXE-10001.zip');
+assert(!order.includes('cancel:45'));
+state.sampleJob={tabId:99,data:{url:sourceUrl,issueKey:'GXXE-10001',nativeAttachments:[{name:expectedName,occurrence:0}]}};
+const invoke=message=>new Promise(resolve=>callbacks.message(message,{id:'test-extension',url:chrome.runtime.getURL('exporter.html?job=sampleJob')},resolve));
+const response=await invoke({type:'resolve-native-download',job:'sampleJob',index:0});assert(response.token && !response.error);
+const invalid=await invoke({type:'prepare-download',job:'sampleJob',url:blob,filename:'../../evil.zip'});assert(invalid.error);
+console.log('PASS: source matching, cancel-before-filename callback, failed cancellation, archive filename preservation, and path validation.');
+
+let visibleKey='GXXE-99999',clicks=0;
+globalThis.location={href:sourceUrl};
+globalThis.getComputedStyle=()=>({visibility:'visible'});
+const file={querySelector(selector){return selector==='.file-name'?{textContent:expectedName}:{click(){clicks++;}};}};
+const root={getClientRects(){return [{}];},get innerText(){return visibleKey;},querySelectorAll(selector){return selector==='[data-clipboard-text]'?[{getAttribute(){return visibleKey;}}]:[file];}};
+globalThis.document={querySelectorAll(){return [root];}};
+assert.throws(()=>injection.func(...injection.args),/另一条问题单/);assert.equal(clicks,0);
+visibleKey='GXXE-10001';assert.equal(injection.func(...injection.args),true);assert.equal(clicks,1);
+console.log('PASS: switching issues at the same version-library URL is detected before clicking an attachment.');

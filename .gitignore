@@ -9,3 +9,15 @@ dist/
 downloads/
 exports/
 debug-log.json
+
+# Exported issue data and local credentials must not enter the source repository.
+GXXE-*/
+*.rar
+*.7z
+*.db
+*.sqlite
+*.sqlite3
+*.pem
+*.key
+*.p12
+*.pfx

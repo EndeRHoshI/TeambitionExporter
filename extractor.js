@@ -2,7 +2,7 @@
   const visible = el => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden';
   const dialogs = [...document.querySelectorAll('[role="dialog"],dialog[open]')]
     .filter(el => visible(el) && el.innerText.trim().length > 80);
-  const detail = document.querySelector('#root-detail');
+  const detail = [...document.querySelectorAll('#root-detail')].filter(visible).at(-1);
   const root = detail && visible(detail) ? detail : dialogs.at(-1) || document.body;
   const candidates = new Map();
   const filePattern = /\.(?:log|txt|zip|gz|tgz|tar|7z|rar|json|csv|xml|har|dmp|crash|pdf|docx?|xlsx?|png|jpe?g|gif|webp|mp4|mov)(?:$|[?#])/i;
@@ -21,10 +21,14 @@
   for (const img of root.querySelectorAll('img')) {
     if (!visible(img)) continue;
     const rect = img.getBoundingClientRect();
-    const large = Math.max(img.naturalWidth, rect.width) >= 180 && Math.max(img.naturalHeight, rect.height) >= 100;
+    // Intrinsic dimensions can be huge even for a 24px avatar. Use visible size
+    // only as a fallback; rich-text images may intentionally be tiny thumbnails.
+    const large = rect.width >= 180 && rect.height >= 100;
+    const richText = img.matches('[data-testid="cangjie-image"]') || Boolean(img.closest('article,[data-cangjie-editor],[data-slate-editor],[class*="rich-text"],[class*="markdown"]'));
     const src = img.getAttribute('data-src') || img.currentSrc || img.src;
-    const avatar = /avatar|profile|logo|emoji/i.test(`${src} ${img.className}`);
-    add(src, img.alt || img.title, 'image', img.matches('[data-testid="cangjie-image"]') || (large && !avatar));
+    const avatar = /avatar|profile|logo|emoji/i.test(`${src} ${img.className}`) || Boolean(img.closest('[class*="avatar" i],[data-role*="avatar" i],[class*="emoji" i]'));
+    if (avatar) continue;
+    add(src, img.alt || img.title, 'image', richText || large);
   }
   for (const a of root.querySelectorAll('a[href]')) {
     if (!visible(a)) continue;
@@ -48,6 +52,7 @@
       return { name, reason: '页面未提供可识别的下载按钮或下载链接。' };
     }).filter(Boolean);
   return {
+    issueKey: [...root.querySelectorAll('[data-clipboard-text]')].map(el => el.getAttribute('data-clipboard-text')).find(value => /^GXXE-\d+$/.test(value)) || root.innerText.match(/\bGXXE-\d+\b/)?.[0] || '',
     title: root.querySelector('[data-role="object-content"] [contenteditable]')?.textContent.trim() || document.title,
     url: location.href,
     capturedAt: new Date().toISOString(),
