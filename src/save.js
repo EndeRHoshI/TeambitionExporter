@@ -34,7 +34,7 @@ button.onclick = async () => {
     const result = await chrome.runtime.sendMessage({ type: 'start-selected-export', token });
     if (!result || result.error) throw new Error(result?.error || '导出没有返回结果');
     exporting = false;
-    renderProgress(100, result.incomplete ? '导出结束：部分附件缺失' : '导出完成');
+    renderProgress(100, '');
     status.textContent = `${result.incomplete ? '已保存，但部分附件缺失' : '导出完成'}\n${result.displayPath}\n请到所选目录中查看文件，可以关闭此窗口。`;
     button.textContent = '关闭';
     button.onclick = () => window.close();
