@@ -18,7 +18,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     await log('directory.ready', { name: config.handle.name, configuredPath: config.rootPath });
     const archive = await buildArchive(message.snapshot, {
       log,
-      async progress(text, badge) { await rpc('runner-progress', { job, text, badge }); },
+      async progress(text, badge, details = {}) { await rpc('runner-progress', { job, text, ...details }); },
       async resolveNative(index) {
         const response = await rpc('resolve-native-download', { job, index });
         const deadline = Date.now() + 45000;
@@ -34,7 +34,9 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       diagnostics: () => rpc('runner-diagnostics', { job })
     });
     await rpc('runner-progress', { job, text: '正在写入已授权的导出目录', badge: '保存' });
-    const saved = await saveExport(config, message.snapshot.issueKey, archive);
+    const saved = await saveExport(config, message.snapshot.issueKey, archive, async (done, total, name) => {
+      await rpc('runner-progress', { job, text: `保存文件 ${done}/${total}：${name}`, percent: total ? Math.floor(done / total * 100) : 0, phase: 'save' });
+    });
     await log('archive.saved', saved);
     let copied = false;
     try {

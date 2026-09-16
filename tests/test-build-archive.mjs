@@ -12,7 +12,7 @@ try{
  const result=await buildArchive(snapshot,hooks);assert(!result.incomplete);assert.equal(result.successful,2);
  assert.equal(result.blob,undefined);assert.equal(result.filename,undefined);
  const manifest=JSON.parse(result.files.find(file=>file.name==='GXXE-10001/manifest.json').data);
- assert.equal(manifest.complete,true);assert.equal(manifest.exportResults.length,2);assert.equal(manifest.version,'1.0.1');
+ assert.equal(manifest.complete,true);assert.equal(manifest.exportResults.length,2);assert.equal(manifest.version,'1.0.0');
  const partial=await buildArchive(snapshot,{...hooks,async resolveNative(){throw Error('timeout');}});
  assert(partial.incomplete);assert.equal(JSON.parse(partial.files.find(file=>file.name.endsWith('/manifest.json')).data).complete,false);assert.equal(partial.failed,1);
 }finally{await rm(dir,{recursive:true,force:true});}

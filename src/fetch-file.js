@@ -12,14 +12,16 @@ export async function fetchFile(url, { maxBytes, expectedName = '', onProgress =
     if (total > maxBytes) throw new Error('附件超出本次剩余内存限额（整个包最多 256 MB）');
     if (!response.body) throw new Error('附件响应没有可读取的数据');
     reader = response.body.getReader();
-    const chunks = []; let received = 0;
+    const chunks = []; let received = 0; let lastProgress = 0;
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       received += value.byteLength;
       if (received > maxBytes) throw new Error('附件超出本次剩余内存限额（整个包最多 256 MB）');
-      chunks.push(value); onProgress(received, total);
+      chunks.push(value);
+      if (Date.now() - lastProgress >= 250) { await onProgress(received, total); lastProgress = Date.now(); }
     }
+    await onProgress(received, total);
     if (!received) throw new Error('附件为空文件');
     const data = new Uint8Array(received); let offset = 0;
     for (const chunk of chunks) { data.set(chunk, offset); offset += chunk.byteLength; }

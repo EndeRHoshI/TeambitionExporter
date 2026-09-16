@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Teambition 本地问题单导出",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "description": "点击图标在后台打包问题单，保存到你选择并授权的目录并复制 文件夹路径。",
   "permissions": [
     "activeTab",

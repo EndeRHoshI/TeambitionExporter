@@ -1,5 +1,5 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>导出问题单</title>
-<style>body{background:#121b30;color:#eef3ff;font:15px/1.7 system-ui;margin:0;padding:28px}h1{font-size:22px;margin:0 0 12px}p{color:#c3d1e8}button{background:#82e4f0;border:0;border-radius:8px;padding:12px 20px;font:600 15px system-ui;cursor:pointer}button:disabled{opacity:.5;cursor:wait}#status{white-space:pre-wrap;overflow-wrap:anywhere}a{color:#82e4f0}</style>
+<style>body{background:#121b30;color:#eef3ff;font:15px/1.7 system-ui;margin:0;padding:28px}h1{font-size:22px;margin:0 0 12px}p{color:#c3d1e8}button{background:#82e4f0;border:0;border-radius:8px;padding:12px 20px;font:600 15px system-ui;cursor:pointer}button:disabled{opacity:.5;cursor:wait}#status{white-space:pre-wrap;overflow-wrap:anywhere}a{color:#82e4f0}progress{width:100%;height:14px;accent-color:#82e4f0}#progress-label{font-size:13px;color:#c3d1e8;margin-top:4px}</style>
 <h1>选择位置，导出问题单</h1><p>选择一个父目录，自动在里面创建 以问题单编号命名的文件夹，保存描述、截图和日志。</p>
-<button id="save" disabled>选择目录并导出</button><p id="status" role="status">正在准备…</p><a id="settings" href="#">复制路径设置 / 排查日志</a>
+<button id="save" disabled>选择目录并导出</button><div id="progress-area" hidden><progress id="progress" max="100" aria-label="导出进度"></progress><div id="progress-label"></div></div><p id="status" role="status">正在准备…</p><a id="settings" href="#">复制路径设置 / 排查日志</a>
 <script type="module" src="save.js"></script></html>

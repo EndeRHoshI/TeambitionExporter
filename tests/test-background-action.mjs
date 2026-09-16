@@ -4,7 +4,7 @@ let documents=0, runs=0, directoryError=false;
 const snapshot={issueKey:'GXXE-10001',text:'description',scope:'teambition-detail',assets:[],nativeAttachments:[]};
 const storage=values=>({async get(key){return key===null?{...values}:{[key]:values[key]};},async set(v){Object.assign(values,v);},async remove(k){delete values[k];}});
 globalThis.chrome={
- runtime:{id:'test',getURL:p=>'chrome-extension://test/'+p,getManifest:()=>({version:'1.0.1'}),
+ runtime:{id:'test',getURL:p=>'chrome-extension://test/'+p,getManifest:()=>({version:'1.0.0'}),
   onMessage:{addListener(fn){callbacks.message=fn;}},async getContexts(){return documents?[{}]:[];},
   async sendMessage(msg){assert.equal(msg.target,'offscreen');assert.equal(msg.type,'run-export');runs++;
    if(directoryError)return {error:'请先设置 Documents',code:'DIRECTORY_REQUIRED'};
@@ -62,3 +62,12 @@ assert.equal(openedWindow.left,-1060);assert.equal(openedWindow.top,250);assert.
 snapshot.issueKey='QHFG-10002';
 await exportTab(tab);assert.equal(local.lastExport.status,'complete');
 await resetFeedback();
+const originalSend=chrome.runtime.sendMessage;const progressMessages=[];
+chrome.runtime.sendMessage=async message=>{progressMessages.push(message);return {};};
+session.activeExport={job:'progress-job',progressToken:'save-token',expires:Date.now()+60000};
+const runner=message=>new Promise(resolve=>callbacks.message(message,{id:'test',url:'chrome-extension://test/src/offscreen.html'},resolve));
+await runner({type:'runner-heartbeat',job:'progress-job'});assert.equal(session.activeExport.progressToken,'save-token');
+await runner({type:'runner-progress',job:'stale-job',text:'ignore',percent:10});assert.equal(progressMessages.length,0);
+await runner({type:'runner-progress',job:'progress-job',text:'downloading',percent:50,phase:'download'});
+assert.equal(progressMessages[0].token,'save-token');assert.equal(progressMessages[0].percent,50);
+chrome.runtime.sendMessage=originalSend;delete session.activeExport;

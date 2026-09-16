@@ -17,10 +17,16 @@ export async function buildArchive(snapshot, { log, progress, resolveNative, dia
     if (!/\.[a-z\d]{1,8}$/i.test(name)) name += '.bin';
     const local = `assets/${String(i + 1).padStart(3, '0')}-${safeName(name)}`;
     try {
-      await progress(`正在收集 ${i + 1}/${assets.length}：${name}`, `${i + 1}/${assets.length}`);
+      await progress(`准备附件 ${i + 1}/${assets.length}：${name}（等待下载地址或服务器响应）`, `${i + 1}/${assets.length}`);
       const url = asset.nativeIndex != null ? await resolveNative(asset.nativeIndex) : asset.url;
       await log('asset.fetch-start', { name, url });
-      const result = await fetchAsset(url, { maxBytes: 256 * 1024 * 1024 - totalBytes, expectedName: name });
+      const result = await fetchAsset(url, { maxBytes: 256 * 1024 * 1024 - totalBytes, expectedName: name,
+        async onProgress(received, total) {
+          const size = bytes => (bytes / 1024 / 1024).toFixed(2) + ' MB';
+          const percent = total > 0 ? Math.min(100, Math.floor(received / total * 100)) : null;
+          await progress(`下载附件 ${i + 1}/${assets.length}：${name}\n已下载 ${size(received)}${total ? ' / ' + size(total) : '（总大小未知）'}`, '', { percent, phase: 'download', received, total });
+        }
+      });
       totalBytes += result.bytes;
       files.push({ name: `${issueKey}/${local}`, data: result.data });
       results.push({ name, status: 'complete', local, bytes: result.bytes, mime: result.mime });
@@ -34,7 +40,7 @@ export async function buildArchive(snapshot, { log, progress, resolveNative, dia
   const unresolved = snapshot.unresolvedAttachments || [], incomplete = failed > 0 || unresolved.length > 0;
   const list = results.map(a => a.status === 'complete' ? `- [${a.local}](${encodeURI(a.local)})` : `- 未取得：${a.name} — ${a.error}`).join('\n');
   files.push({ name: `${issueKey}/issue.md`, data: `# ${issueKey} ${snapshot.title}\n\n来源：${snapshot.url}\n\n${incomplete ? '**本次导出不完整。**\n\n' : ''}## 问题描述\n\n${snapshot.text}\n\n## 附件\n\n${list}\n\n${unresolved.map(a => '- 无法识别：' + a.name).join('\n')}\n` });
-  files.push({ name: `${issueKey}/manifest.json`, data: JSON.stringify({ version: '1.0.1', issueKey, title: snapshot.title, url: snapshot.url, capturedAt: snapshot.capturedAt, text: snapshot.text, complete: !incomplete, exportResults: results, unresolvedAttachments: unresolved, limitations: snapshot.limitations }, null, 2) });
+  files.push({ name: `${issueKey}/manifest.json`, data: JSON.stringify({ version: '1.0.0', issueKey, title: snapshot.title, url: snapshot.url, capturedAt: snapshot.capturedAt, text: snapshot.text, complete: !incomplete, exportResults: results, unresolvedAttachments: unresolved, limitations: snapshot.limitations }, null, 2) });
   await log('archive.ready', { issueKey, files: files.length, failed, totalBytes });
   files.push({ name: `${issueKey}/debug-log.json`, data: JSON.stringify(await diagnostics(), null, 2) });
   await progress('文件已收集，准备保存', '保存');

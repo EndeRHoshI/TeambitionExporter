@@ -58,7 +58,7 @@ export async function saveArchive(config, issueKey, filename, blob) {
 }
 
 // Write the original archive entries directly; no external unzip app is needed.
-export async function saveExport(config, issueKey, archive) {
+export async function saveExport(config, issueKey, archive, onProgress = async () => {}) {
   await checkDirectory(config);
   if (!/^[A-Z][A-Z0-9]{0,31}-\d+$/.test(issueKey)) throw new Error('问题单编号无效');
   const entries = archive.files.map(file => {
@@ -85,10 +85,14 @@ export async function saveExport(config, issueKey, archive) {
     if ((await handle.getFile()).size !== blob.size) throw new Error('文件保存后的大小不一致：' + name);
   };
   try {
+    let completed = 0;
     for (const entry of entries) {
+      await onProgress(completed, entries.length, entry.parts.join('/'));
       let parent = directory;
       for (const segment of entry.parts.slice(0, -1)) parent = await parent.getDirectoryHandle(segment, { create: true });
       await write(parent, entry.parts.at(-1), entry.blob);
+      completed++;
+      await onProgress(completed, entries.length, entry.parts.join('/'));
     }
   } catch (error) {
     throw new Error(`目录 ${folder} 中部分文件可能已保存，导出未完成：${error.message}`);

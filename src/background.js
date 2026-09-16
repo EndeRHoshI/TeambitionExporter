@@ -57,7 +57,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     (async () => {
       const pending = (await chrome.storage.session.get('pendingSave')).pendingSave;
       if (!pending || pending.token !== message.token) throw new Error('保存窗口已失效，请重新点击插件图标');
-      return exportTab(await chrome.tabs.get(pending.tabId));
+      return exportTab(await chrome.tabs.get(pending.tabId), pending.token);
     })().then(respond, error => respond({ error: error.message }));
     return true;
   }
@@ -70,11 +70,15 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       if (message.type === 'runner-diagnostics') return readDiagnostics(message.job);
       if (message.type === 'runner-route') return (await chrome.storage.session.get(ROUTE_KEY))[ROUTE_KEY];
       if (message.type === 'runner-heartbeat') {
-        await chrome.storage.session.set({ activeExport: { job: message.job, expires: Date.now() + 60000 } }); return { ok: true };
+        const active = (await chrome.storage.session.get('activeExport')).activeExport;
+        if (active?.job === message.job) await chrome.storage.session.set({ activeExport: { ...active, expires: Date.now() + 60000 } }); return { ok: true };
       }
       if (message.type === 'runner-progress') {
-        // Progress stays in the window and tooltip, without toolbar badges.
-        await chrome.action.setTitle({ title: message.text }); return { ok: true };
+        const active = (await chrome.storage.session.get('activeExport')).activeExport;
+        if (active?.job !== message.job) return { ok: true };
+        await chrome.action.setTitle({ title: message.text });
+        if (active.progressToken) await chrome.runtime.sendMessage({ type: 'export-progress', token: active.progressToken, text: message.text, percent: message.percent ?? null, phase: message.phase }).catch(() => {});
+        return { ok: true };
       }
       throw new Error('未知后台请求');
     })().then(respond, error => respond({ error: error.message }));
@@ -146,7 +150,7 @@ async function ensureOffscreen() {
   await creatingOffscreen;
 }
 let actionBusy = false;
-export async function exportTab(tab) {
+export async function exportTab(tab, progressToken = null) {
   if (!tab.id || actionBusy) return { error: '已有导出正在进行，请稍候' };
   actionBusy = true;
   const job = crypto.randomUUID();
@@ -155,7 +159,7 @@ export async function exportTab(tab) {
     const active = (await chrome.storage.session.get('activeExport')).activeExport;
     if (active && active.expires > Date.now()) { await chrome.action.setTitle({ title: '已有导出正在后台进行，请稍候' }); return; }
     await resetFeedback();
-    await chrome.storage.session.set({ activeExport: { job, expires: Date.now() + 60000 } }); ownsJob = true;
+    await chrome.storage.session.set({ activeExport: { job, progressToken, expires: Date.now() + 60000 } }); ownsJob = true;
     await chrome.storage.local.set({ lastExport: { job, status: 'running', startedAt: new Date().toISOString() } });
     await chrome.action.setTitle({ title: '正在读取问题单' });
     await logEvent(job, 'background', 'extract.start', { sourceUrl: tab.url, sourceTabId: tab.id });

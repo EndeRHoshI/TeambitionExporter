@@ -27,3 +27,11 @@ await assert.rejects(fetchFile('https://example.com/log',{maxBytes:100,expectedN
 const result=await fetchFile('https://example.com/log',{maxBytes:100,expectedName:'log.rar',fetchImpl:reply('Rar!test',{'content-type':'application/x-rar'})});
 assert.equal(result.bytes,8);
 console.log('PASS: standard unzip interoperability, CRC32, safe paths, HTTP/HTML/RAR validation, and streaming size limit.');
+for(const length of [null,'8']) {
+ const updates=[];
+ const streamed=await fetchFile('https://example.com/data',{maxBytes:100,
+  fetchImpl:async()=>new Response(new ReadableStream({start(controller){controller.enqueue(new Uint8Array([1,2,3]));controller.enqueue(new Uint8Array([4,5,6,7,8]));controller.close();}}),{headers:length?{'content-length':length}:{}}),
+  async onProgress(received,total){updates.push({received,total});}
+ });
+ assert.equal(streamed.bytes,8);assert.equal(updates.at(-1).received,8);assert.equal(updates.at(-1).total,length?8:0);
+}

@@ -82,3 +82,6 @@ for(const key of ['QHFG-10002','APP2-123']) {
 for(const key of ['../QHFG-1','QHFG-1/escape','2026-01','QHFG-']) {
  await assert.rejects(saveExport(exportConfig,key,{files:[]}),/编号无效/);
 }
+const savedProgress=[];
+await saveExport(exportConfig,'TEST-10003',{files:[{name:'TEST-10003/issue.md',data:'ok'},{name:'TEST-10003/assets/log.txt',data:'log'}]},async(done,total,name)=>savedProgress.push({done,total,name}));
+assert.equal(savedProgress[0].done,0);assert.equal(savedProgress.at(-1).done,2);assert.equal(savedProgress.at(-1).total,2);
