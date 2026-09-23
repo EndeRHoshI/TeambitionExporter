@@ -15,7 +15,7 @@ function renderProgress(percent, label) {
 chrome.runtime.onMessage.addListener((message, sender) => {
   if (!exporting || sender.id !== chrome.runtime.id || message.type !== 'export-progress' || message.token !== token) return;
   status.textContent = message.text;
-  renderProgress(message.percent, message.phase === 'download' ? `当前附件下载进度${message.percent == null ? '：总大小未知' : '：' + message.percent + '%'}` : message.phase === 'save' ? `文件保存进度：${message.percent}%` : '正在准备，请稍候…');
+  renderProgress(message.percent, message.phase === 'download' ? `当前附件下载进度${message.percent == null ? '：总大小未知' : '：' + message.percent + '%'}` : message.phase === 'wait' ? '等待页面返回下载地址' : message.phase === 'save' ? `文件保存进度：${message.percent}%` : '正在准备，请稍候…');
 });
 button.disabled = false;
 status.textContent = '选择目录后开始导出。';

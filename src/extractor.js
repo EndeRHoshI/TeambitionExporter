@@ -71,8 +71,11 @@
     if (card.querySelector?.('a[href]')) continue;
     const occurrence = fileCounts.get(name) || 0;
     fileCounts.set(name, occurrence + 1);
-    if (card.querySelector?.(downloadSelector) || card.querySelector?.('[role="button"]') || card.tagName === 'BUTTON') nativeAttachments.push({ name, occurrence, kind: 'native-attachment' });
-    else unresolvedAttachments.push({ name, reason: '页面未提供可识别的下载按钮或下载链接。' });
+    if (card.querySelector?.(downloadSelector) || card.querySelector?.('[role="button"]') || card.tagName === 'BUTTON') {
+      if (!nativeAttachments.some(item => item.name === name)) nativeAttachments.push({ name, occurrence: 0, kind: 'native-attachment' });
+    } else if (!unresolvedAttachments.some(item => item.name === name)) {
+      unresolvedAttachments.push({ name, reason: '页面未提供可识别的下载按钮或下载链接。' });
+    }
   }
   return {
     issueKey: [...root.querySelectorAll('[data-clipboard-text]')].map(el => el.getAttribute('data-clipboard-text')).find(value => /^[A-Z][A-Z0-9]{0,31}-\d+$/.test(value)) || root.innerText.match(/\b[A-Z][A-Z0-9]{0,31}-\d+\b/)?.[0] || '',

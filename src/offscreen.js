@@ -21,15 +21,21 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       async progress(text, badge, details = {}) { await rpc('runner-progress', { job, text, ...details }); },
       async resolveNative(index) {
         const response = await rpc('resolve-native-download', { job, index });
-        const deadline = Date.now() + 45000;
+        const deadline = Date.now() + 10000;
+        let lastNotice = 0;
         while (Date.now() < deadline) {
           const state = await rpc('runner-route', { job });
           if (!state || state.token !== response.token) throw new Error('附件下载跟踪已失效');
           if (state.status === 'failed') throw new Error(state.error);
           if (state.status === 'resolved') return state.url;
+          const now = Date.now();
+          if (now - lastNotice >= 1000) {
+            lastNotice = now;
+            await rpc('runner-progress', { job, text: `等待下载地址：还剩 ${Math.max(1, Math.ceil((deadline - now) / 1000))} 秒，超时后继续下一个附件`, percent: null, phase: 'wait' });
+          }
           await new Promise(resolve => setTimeout(resolve, 200));
         }
-        throw new Error('没有捕获到附件地址，请保留原问题单');
+        throw new Error('等待下载地址超时（10 秒），已跳过此附件');
       },
       diagnostics: () => rpc('runner-diagnostics', { job })
     });
