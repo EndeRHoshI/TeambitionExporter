@@ -43,7 +43,7 @@
   // Start from visible filename nodes, then walk up to the smallest card with a download control.
   const downloadSelector = '.next-icon-download,[aria-label*="下载" i],[title*="下载" i],[data-testid*="download" i],button[download]';
   const fileNameNodes = [...root.querySelectorAll('.file-name,[class*="file-name" i],[data-testid*="file-name" i]')].filter(visible);
-  const fallbackNodes = [...root.querySelectorAll('*')].filter(el => visible(el) && el.children.length < 4 && filePattern.test(el.textContent.trim()) && el.textContent.trim().length < 240);
+  const fallbackNodes = [...root.querySelectorAll('*')].filter(el => visible(el) && el.children.length === 0 && filePattern.test(el.textContent.trim()) && el.textContent.trim().length < 160);
   const cards = new Map();
   for (const node of [...fileNameNodes, ...fallbackNodes]) {
     const name = (node.textContent || '').trim().split(/\n/)[0].trim();

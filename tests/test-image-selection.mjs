@@ -33,4 +33,5 @@ commentName.parentElement=commentCard;
 const commentRoot={...root,querySelectorAll(selector){if(selector.includes('file-name'))return [commentName];if(selector==='*')return [];if(selector==='[data-clipboard-text]')return [{getAttribute(){return 'QHFG-14462';}}];return [];},innerText:'QHFG-14462 comment'};
 const commentResult=vm.runInNewContext(await readFile(new URL('../src/extractor.js',import.meta.url),'utf8'),{document:{body:commentRoot,title:'Issue',querySelectorAll(sel){return sel==='#root-detail'?[commentRoot]:[];}},location:{href:'https://www.teambition.com/project/a/task/b'},getComputedStyle(){return {visibility:'visible'};},URL});
 assert.equal(commentResult.nativeAttachments[0].name,'app 日志.zip');
+assert.equal(commentResult.nativeAttachments.length,1);
 console.log('PASS: visible comment file cards with non-standard classes are queued for native download.');
