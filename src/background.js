@@ -1,3 +1,4 @@
+import { captureTaskLink } from './task-link.js';
 import { resetFeedback, finishFeedback, installFeedbackHandlers } from './feedback.js';
 import { ROUTE_KEY, matchesDownload } from './download-match.js';
 import { logEvent, readDiagnostics } from './diagnostics.js';
@@ -118,28 +119,10 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
           const root = [...document.querySelectorAll('#root-detail')].filter(el => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden').at(-1);
           const issueKey = root && ([...root.querySelectorAll('[data-clipboard-text]')].map(el => el.getAttribute('data-clipboard-text')).find(value => /^[A-Z][A-Z0-9]{0,31}-\d+$/.test(value)) || root.innerText.match(/\b[A-Z][A-Z0-9]{0,31}-\d+\b/)?.[0]);
           if (!root || issueKey !== expectedIssueKey) throw new Error('已切换到另一条问题单，请重新点击插件导出。');
-          const downloadSelector = '.next-icon-download,[aria-label*="下载" i],[title*="下载" i],[data-testid*="download" i],button[download]';
-          const compact = text => text.replace(/[\s\u200b\ufeff]+/g, ' ').replace(/\s*\.(?=[a-z\d]{1,8}\b)/gi, '.').trim();
-          const wanted = compact(expectedName);
-          const sizePattern = /\b\d+(?:\.\d+)?\s*(?:B|KB|MB|GB)\b/i;
-          const nameNodes = [...root.querySelectorAll('.file-name,[class*="file-name" i],[data-testid*="file-name" i]')];
-          const nodes = [...nameNodes, ...[...root.querySelectorAll('*')]];
-          const cards = [];
-          for (const node of nodes) {
-            if (!node.getClientRects?.().length) continue;
-            const text = node.innerText || node.textContent || '';
-            const compactText = compact(text);
-            if (compactText.length > 240 || !compactText.includes(wanted) || !sizePattern.test(text)) continue;
-            let card = node.textContent ? (node.parentElement || node) : node;
-            for (let depth = 0; depth < 8 && card && card !== root; depth++, card = card.parentElement) {
-              const cardText = compact(card.innerText || card.textContent || '');
-              if (cardText.includes(wanted) && (sizePattern.test(card.innerText || card.textContent || '') || card.querySelector?.(downloadSelector))) break;
-            }
-            if (card && card !== root && !cards.includes(card)) cards.push(card);
-          }
-          const card = cards[occurrence] || nodes[occurrence]?.parentElement || nodes[occurrence];
-          const button = card?.querySelector?.(downloadSelector) || card?.querySelector?.('[role="button"]') || card;
-          if (!button) throw new Error('没有找到对应评论附件卡片；请先展开评论附件');
+          const files = [...root.querySelectorAll('.file-content')]
+            .filter(el => el.querySelector('.file-name')?.textContent.trim() === expectedName);
+          const button = files[occurrence]?.querySelector('.next-icon-download');
+          if (!button) throw new Error('没有找到对应附件的下载按钮');
           button.click();
           return true;
         }
@@ -183,8 +166,34 @@ export async function exportTab(tab, progressToken = null) {
     await logEvent(job, 'background', 'extract.start', { sourceUrl: tab.url, sourceTabId: tab.id });
     const url = new URL(tab.url);
     if (url.protocol !== 'https:' || !['www.teambition.com', 'teambition.com'].includes(url.hostname)) throw new Error('请在 Teambition 网页中打开问题单详情，再点击插件');
-    const results = await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['src/extractor.js'] });
-    const data = results[0]?.result;
+    let data;
+    if (/\/bug\/section\/all\/?$/.test(url.pathname)) {
+      const links = await chrome.scripting.executeScript({
+        target: { tabId: tab.id }, world: 'MAIN', func: captureTaskLink
+      });
+      const link = links[0]?.result;
+      if (!link || !/^https:\/\/(?:www\.)?teambition\.com\/task\/[a-f\d]{24}$/i.test(link.url)) throw new Error('未取得有效任务链接');
+      await logEvent(job, 'background', 'task-link.captured', { issueKey: link.issueKey, method: link.method });
+      await chrome.tabs.update(tab.id, { url: link.url });
+      // Chrome's load event does not mean the SPA detail has rendered yet.
+      const deadline = Date.now() + 30000;
+      while (Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        try {
+          const results = await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['src/extractor.js'] });
+          const snapshot = results[0]?.result;
+          if (snapshot?.scope === 'teambition-detail' && snapshot.issueKey === link.issueKey &&
+              /\/task\/[a-f\d]{24}\/?$/i.test(new URL(snapshot.url).pathname) && snapshot.text?.trim()) {
+            data = snapshot;
+            break;
+          }
+        } catch { /* Navigation can destroy the old document mid-injection. */ }
+      }
+      if (!data) throw new Error('任务链接已打开，但对应问题详情尚未加载完成');
+    } else {
+      const results = await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['src/extractor.js'] });
+      data = results[0]?.result;
+    }
     if (data?.scope !== 'teambition-detail' || !/^[A-Z][A-Z0-9]{0,31}-\d+$/.test(data.issueKey || '') || !data.text?.trim()) throw new Error('当前页面没有打开可识别的问题单详情，请点击一条问题单并等待内容加载');
     await chrome.storage.session.set({ [job]: { data, tabId: tab.id } });
     await logEvent(job, 'background', 'extract.complete', { issueKey: data.issueKey, assets: data.assets.length, nativeAttachments: data.nativeAttachments?.length || 0 });

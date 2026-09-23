@@ -5,6 +5,7 @@
   const detail = [...document.querySelectorAll('#root-detail')].filter(visible).at(-1);
   const root = detail && visible(detail) ? detail : dialogs.at(-1) || document.body;
   const candidates = new Map();
+  const filePattern = /\.(?:log|txt|zip|gz|tgz|tar|7z|rar|json|csv|xml|har|dmp|crash|pdf|docx?|xlsx?|png|jpe?g|gif|webp|mp4|mov)(?:$|[?#])/i;
   function add(raw, name, kind, selected) {
     if (!raw) return;
     let url;
@@ -37,45 +38,28 @@
   }
   const fileCounts = new Map();
   const nativeAttachments = [];
-  const unresolvedAttachments = [];
-  // Comment cards often split the filename over several text nodes (for example
-  // "app 日志" and ".zip") and do not render a download icon until hovered.
-  const downloadSelector = '.next-icon-download,[aria-label*="下载" i],[title*="下载" i],[data-testid*="download" i],button[download]';
-  const filePattern = /\.(?:log|txt|zip|gz|tgz|tar|7z|rar|json|csv|xml|har|dmp|crash|pdf|docx?|xlsx?|png|jpe?g|gif|webp|mp4|mov)(?:$|[?#])/i;
-  const sizePattern = /\b\d+(?:\.\d+)?\s*(?:B|KB|MB|GB)\b/i;
-  const compact = text => text.replace(/[\s\u200b\ufeff]+/g, ' ').replace(/\s*\.(?=[a-z\d]{1,8}\b)/gi, '.').trim();
-  const filenameFrom = text => {
-    const value = compact(text);
-    const match = value.match(/(?:^|\s)([^\n]{1,140}\.(?:log|txt|zip|gz|tgz|tar|7z|rar|json|csv|xml|har|dmp|crash|pdf|docx?|xlsx?|png|jpe?g|gif|webp|mp4|mov))(?:\s|$)/i);
-    return match?.[1]?.trim() || (filePattern.test(value) ? value.split(/\s+/).find(part => filePattern.test(part)) : '');
-  };
-  const cardFor = node => {
-    let card = node;
-    for (let depth = 0; depth < 8 && card && card !== root; depth++, card = card.parentElement) {
-      const text = card.innerText || card.textContent || '';
-      if (sizePattern.test(text) && filenameFrom(text)) return card;
-      if (card.querySelector?.(downloadSelector) || card.querySelector?.('a[href]')) return card;
-    }
-    return null;
-  };
-  const cards = new Map();
-  const scanNodes = [...root.querySelectorAll('.file-name,[class*="file-name" i],[data-testid*="file-name" i]'), ...root.querySelectorAll('*')];
-  for (const node of scanNodes.filter(visible)) {
-    const text = node.innerText || node.textContent || '';
-    if (!text || text.length > 240 || (!filePattern.test(compact(text)) && !/^\.[a-z\d]{1,8}$/i.test(text.trim()))) continue;
-    const card = cardFor(node);
-    const name = card && filenameFrom(card.innerText || card.textContent || '');
-    if (card && name && !cards.has(card)) cards.set(card, name);
-  }
-  for (const [card, name] of cards) {
-    if (card.querySelector?.('a[href]')) continue;
-    const occurrence = fileCounts.get(name) || 0;
-    fileCounts.set(name, occurrence + 1);
-    if (card.querySelector?.(downloadSelector) || card.querySelector?.('[role="button"]') || card.tagName === 'BUTTON') {
-      if (!nativeAttachments.some(item => item.name === name)) nativeAttachments.push({ name, occurrence: 0, kind: 'native-attachment' });
-    } else if (!unresolvedAttachments.some(item => item.name === name)) {
-      unresolvedAttachments.push({ name, reason: '页面未提供可识别的下载按钮或下载链接。' });
-    }
+  const unresolvedAttachments = [...root.querySelectorAll('.file-content')]
+    .filter(visible)
+    .filter(el => !el.querySelector('a[href]'))
+    .map(el => {
+      const name = el.querySelector('.file-name')?.textContent.trim() || el.innerText.trim();
+      const occurrence = fileCounts.get(name) || 0;
+      fileCounts.set(name, occurrence + 1);
+      if (root === detail && name && el.querySelector('.next-icon-download')) {
+        nativeAttachments.push({ name, occurrence, kind: 'native-attachment' });
+        return null;
+      }
+      return { name, reason: '页面未提供可识别的下载按钮或下载链接。' };
+    }).filter(Boolean);
+  const commentText = root.innerText.includes('所有动态') ? root.innerText.split('所有动态').slice(1).join('所有动态') : '';
+  const commentLines = commentText.split(/\n+/).map(line => line.trim()).filter(Boolean);
+  const manualCommentAttachments = [];
+  for (let i = 0; i < commentLines.length; i++) {
+    const line = commentLines[i];
+    const joined = line + ((/^\.[a-z\d]{1,8}$/i.test(commentLines[i + 1] || '')) ? commentLines[++i] : '');
+    const match = joined.match(/([^\n]{1,120}\.(?:log|txt|zip|gz|tgz|tar|7z|rar|json|csv|xml|har|dmp|crash|pdf|docx?|xlsx?|png|jpe?g|gif|webp|mp4|mov))$/i);
+    const name = match?.[1]?.trim().replace(/\s+/g, ' ');
+    if (name && !manualCommentAttachments.includes(name) && !nativeAttachments.some(a => a.name === name)) manualCommentAttachments.push(name);
   }
   return {
     issueKey: [...root.querySelectorAll('[data-clipboard-text]')].map(el => el.getAttribute('data-clipboard-text')).find(value => /^[A-Z][A-Z0-9]{0,31}-\d+$/.test(value)) || root.innerText.match(/\b[A-Z][A-Z0-9]{0,31}-\d+\b/)?.[0] || '',
@@ -87,8 +71,9 @@
     assets: [...candidates.values()],
     unresolvedAttachments,
     nativeAttachments,
+    manualCommentAttachments,
     limitations: [
-      '仅提取当前已加载且可见的 DOM 文本、评论附件和 img/a 链接；未加载、折叠、虚拟滚动、iframe、canvas、CSS 背景图片可能遗漏。',
+      '仅提取当前已加载的 DOM 文本和 img/a 链接；未加载、折叠、虚拟滚动、iframe、canvas、CSS 背景图片和仅由按钮触发的附件可能遗漏。',
       '图片可能是缩略图；下载完成仅表示 Chrome 完成传输，仍需确认文件不是登录页或错误页。',
       '日志仅指问题单中可下载的日志附件或可见日志文本，不会自动收集应用运行日志。'
     ]

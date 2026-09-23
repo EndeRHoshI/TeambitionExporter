@@ -36,6 +36,9 @@ button.onclick = async () => {
     exporting = false;
     renderProgress(100, '');
     status.textContent = `${result.incomplete ? '已保存，但部分附件缺失' : '导出完成'}\n${result.displayPath}\n请到所选目录中查看文件，可以关闭此窗口。`;
+    if (result.manualCommentAttachments?.length) {
+      status.textContent += '\n提示：评论区有日志、视频或图片待下载，请手动下载。';
+    }
     button.textContent = '关闭';
     button.onclick = () => window.close();
   } catch (error) {

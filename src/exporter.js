@@ -149,6 +149,9 @@ $('export').addEventListener('click', async () => {
     $('path').value = absolutePath; $('copy').disabled = false;
     await log('export.complete', { path: absolutePath, bytes: zip.size, failed, elapsedMs: Date.now() - startedAt });
     $('status').textContent = `${incomplete ? '已保存不完整归档' : '已保存完整归档'}：${archiveName}\n附件成功 ${results.length - failed} 个，失败 ${failed} 个。解压后得到 ${issueKey} 文件夹。`;
+    if (snapshot.manualCommentAttachments?.length) {
+      $('status').textContent += '\n提示：评论区有日志、视频或图片待下载，请手动下载。';
+    }
     if (!absolutePath.replace(/\\/g, '/').includes(`/${issueKey}/`)) {
       $('status').textContent += '\n浏览器改变了保存位置；压缩包内仍按问题单编号归档。';
       await log('archive.location-changed', { requested: `${issueKey}/${archiveName}`, actual: absolutePath }, 'warn');
