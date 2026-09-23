@@ -5,7 +5,6 @@
   const detail = [...document.querySelectorAll('#root-detail')].filter(visible).at(-1);
   const root = detail && visible(detail) ? detail : dialogs.at(-1) || document.body;
   const candidates = new Map();
-  const filePattern = /\.(?:log|txt|zip|gz|tgz|tar|7z|rar|json|csv|xml|har|dmp|crash|pdf|docx?|xlsx?|png|jpe?g|gif|webp|mp4|mov)(?:$|[?#])/i;
   function add(raw, name, kind, selected) {
     if (!raw) return;
     let url;
@@ -39,28 +38,40 @@
   const fileCounts = new Map();
   const nativeAttachments = [];
   const unresolvedAttachments = [];
-  // Teambition renders issue-detail files and comment files with different class names.
-  // Start from visible filename nodes, then walk up to the smallest card with a download control.
+  // Comment cards often split the filename over several text nodes (for example
+  // "app 日志" and ".zip") and do not render a download icon until hovered.
   const downloadSelector = '.next-icon-download,[aria-label*="下载" i],[title*="下载" i],[data-testid*="download" i],button[download]';
-  const fileNameNodes = [...root.querySelectorAll('.file-name,[class*="file-name" i],[data-testid*="file-name" i]')].filter(visible);
-  const fallbackNodes = [...root.querySelectorAll('*')].filter(el => visible(el) && el.children.length === 0 && filePattern.test(el.textContent.trim()) && el.textContent.trim().length < 160);
-  const cards = new Map();
-  for (const node of [...fileNameNodes, ...fallbackNodes]) {
-    const name = (node.textContent || '').trim().split(/\n/)[0].trim();
-    if (!name || !filePattern.test(name)) continue;
+  const filePattern = /\.(?:log|txt|zip|gz|tgz|tar|7z|rar|json|csv|xml|har|dmp|crash|pdf|docx?|xlsx?|png|jpe?g|gif|webp|mp4|mov)(?:$|[?#])/i;
+  const sizePattern = /\b\d+(?:\.\d+)?\s*(?:B|KB|MB|GB)\b/i;
+  const compact = text => text.replace(/[\s\u200b\ufeff]+/g, ' ').replace(/\s*\.(?=[a-z\d]{1,8}\b)/gi, '.').trim();
+  const filenameFrom = text => {
+    const value = compact(text);
+    const match = value.match(/(?:^|\s)([^\n]{1,140}\.(?:log|txt|zip|gz|tgz|tar|7z|rar|json|csv|xml|har|dmp|crash|pdf|docx?|xlsx?|png|jpe?g|gif|webp|mp4|mov))(?:\s|$)/i);
+    return match?.[1]?.trim() || (filePattern.test(value) ? value.split(/\s+/).find(part => filePattern.test(part)) : '');
+  };
+  const cardFor = node => {
     let card = node;
-    for (let depth = 0; depth < 6 && card && card !== root; depth++, card = card.parentElement) {
-      if (card.querySelector?.(downloadSelector) || card.querySelector?.('a[href]')) break;
+    for (let depth = 0; depth < 8 && card && card !== root; depth++, card = card.parentElement) {
+      const text = card.innerText || card.textContent || '';
+      if (sizePattern.test(text) && filenameFrom(text)) return card;
+      if (card.querySelector?.(downloadSelector) || card.querySelector?.('a[href]')) return card;
     }
-    if (!card || card === root || cards.has(card)) continue;
-    cards.set(card, name);
+    return null;
+  };
+  const cards = new Map();
+  const scanNodes = [...root.querySelectorAll('.file-name,[class*="file-name" i],[data-testid*="file-name" i]'), ...root.querySelectorAll('*')];
+  for (const node of scanNodes.filter(visible)) {
+    const text = node.innerText || node.textContent || '';
+    if (!text || text.length > 240 || (!filePattern.test(compact(text)) && !/^\.[a-z\d]{1,8}$/i.test(text.trim()))) continue;
+    const card = cardFor(node);
+    const name = card && filenameFrom(card.innerText || card.textContent || '');
+    if (card && name && !cards.has(card)) cards.set(card, name);
   }
   for (const [card, name] of cards) {
     if (card.querySelector?.('a[href]')) continue;
     const occurrence = fileCounts.get(name) || 0;
     fileCounts.set(name, occurrence + 1);
-    const hasDownload = Boolean(card.querySelector?.(downloadSelector));
-    if (name && hasDownload) nativeAttachments.push({ name, occurrence, kind: 'native-attachment' });
+    if (card.querySelector?.(downloadSelector) || card.querySelector?.('[role="button"]') || card.tagName === 'BUTTON') nativeAttachments.push({ name, occurrence, kind: 'native-attachment' });
     else unresolvedAttachments.push({ name, reason: '页面未提供可识别的下载按钮或下载链接。' });
   }
   return {
