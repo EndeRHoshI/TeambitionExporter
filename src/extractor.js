@@ -38,19 +38,31 @@
   }
   const fileCounts = new Map();
   const nativeAttachments = [];
-  const unresolvedAttachments = [...root.querySelectorAll('.file-content')]
-    .filter(visible)
-    .filter(el => !el.querySelector('a[href]'))
-    .map(el => {
-      const name = el.querySelector('.file-name')?.textContent.trim() || el.innerText.trim();
-      const occurrence = fileCounts.get(name) || 0;
-      fileCounts.set(name, occurrence + 1);
-      if (root === detail && name && el.querySelector('.next-icon-download')) {
-        nativeAttachments.push({ name, occurrence, kind: 'native-attachment' });
-        return null;
-      }
-      return { name, reason: '页面未提供可识别的下载按钮或下载链接。' };
-    }).filter(Boolean);
+  const unresolvedAttachments = [];
+  // Teambition renders issue-detail files and comment files with different class names.
+  // Start from visible filename nodes, then walk up to the smallest card with a download control.
+  const downloadSelector = '.next-icon-download,[aria-label*="下载" i],[title*="下载" i],[data-testid*="download" i],button[download]';
+  const fileNameNodes = [...root.querySelectorAll('.file-name,[class*="file-name" i],[data-testid*="file-name" i]')].filter(visible);
+  const fallbackNodes = [...root.querySelectorAll('*')].filter(el => visible(el) && el.children.length < 4 && filePattern.test(el.textContent.trim()) && el.textContent.trim().length < 240);
+  const cards = new Map();
+  for (const node of [...fileNameNodes, ...fallbackNodes]) {
+    const name = (node.textContent || '').trim().split(/\n/)[0].trim();
+    if (!name || !filePattern.test(name)) continue;
+    let card = node;
+    for (let depth = 0; depth < 6 && card && card !== root; depth++, card = card.parentElement) {
+      if (card.querySelector?.(downloadSelector) || card.querySelector?.('a[href]')) break;
+    }
+    if (!card || card === root || cards.has(card)) continue;
+    cards.set(card, name);
+  }
+  for (const [card, name] of cards) {
+    if (card.querySelector?.('a[href]')) continue;
+    const occurrence = fileCounts.get(name) || 0;
+    fileCounts.set(name, occurrence + 1);
+    const hasDownload = Boolean(card.querySelector?.(downloadSelector));
+    if (name && hasDownload) nativeAttachments.push({ name, occurrence, kind: 'native-attachment' });
+    else unresolvedAttachments.push({ name, reason: '页面未提供可识别的下载按钮或下载链接。' });
+  }
   return {
     issueKey: [...root.querySelectorAll('[data-clipboard-text]')].map(el => el.getAttribute('data-clipboard-text')).find(value => /^[A-Z][A-Z0-9]{0,31}-\d+$/.test(value)) || root.innerText.match(/\b[A-Z][A-Z0-9]{0,31}-\d+\b/)?.[0] || '',
     title: root.querySelector('[data-role="object-content"] [contenteditable]')?.textContent.trim() || document.title,
@@ -62,7 +74,7 @@
     unresolvedAttachments,
     nativeAttachments,
     limitations: [
-      '仅提取当前已加载的 DOM 文本和 img/a 链接；未加载、折叠、虚拟滚动、iframe、canvas、CSS 背景图片和仅由按钮触发的附件可能遗漏。',
+      '仅提取当前已加载且可见的 DOM 文本、评论附件和 img/a 链接；未加载、折叠、虚拟滚动、iframe、canvas、CSS 背景图片可能遗漏。',
       '图片可能是缩略图；下载完成仅表示 Chrome 完成传输，仍需确认文件不是登录页或错误页。',
       '日志仅指问题单中可下载的日志附件或可见日志文本，不会自动收集应用运行日志。'
     ]

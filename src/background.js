@@ -118,10 +118,19 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
           const root = [...document.querySelectorAll('#root-detail')].filter(el => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden').at(-1);
           const issueKey = root && ([...root.querySelectorAll('[data-clipboard-text]')].map(el => el.getAttribute('data-clipboard-text')).find(value => /^[A-Z][A-Z0-9]{0,31}-\d+$/.test(value)) || root.innerText.match(/\b[A-Z][A-Z0-9]{0,31}-\d+\b/)?.[0]);
           if (!root || issueKey !== expectedIssueKey) throw new Error('已切换到另一条问题单，请重新点击插件导出。');
-          const files = [...root.querySelectorAll('.file-content')]
-            .filter(el => el.querySelector('.file-name')?.textContent.trim() === expectedName);
-          const button = files[occurrence]?.querySelector('.next-icon-download');
-          if (!button) throw new Error('没有找到对应附件的下载按钮');
+          const downloadSelector = '.next-icon-download,[aria-label*="下载" i],[title*="下载" i],[data-testid*="download" i],button[download]';
+          const nodes = [...root.querySelectorAll('.file-name,[class*="file-name" i],[data-testid*="file-name" i]')]
+            .filter(el => el.getClientRects?.().length && el.textContent.trim().split(/\n/)[0].trim() === expectedName);
+          const cards = [];
+          for (const node of nodes) {
+            let card = node;
+            for (let depth = 0; depth < 6 && card && card !== root; depth++, card = card.parentElement) {
+              if (card.querySelector?.(downloadSelector)) break;
+            }
+            if (card && card !== root && !cards.includes(card)) cards.push(card);
+          }
+          const button = cards[occurrence]?.querySelector(downloadSelector);
+          if (!button) throw new Error('没有找到对应附件的下载按钮；请先展开评论附件');
           button.click();
           return true;
         }

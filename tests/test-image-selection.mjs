@@ -25,3 +25,12 @@ for (const key of ['GXXE-10001','QHFG-10002','APP2-123']) {
  assert.equal(read().issueKey,key);
  root.querySelectorAll=()=>[];root.innerText=key+' description';assert.equal(read().issueKey,key);
 }
+
+const downloadButton = {getClientRects(){return [{}];},click(){this.clicked=true;}};
+const commentName = {textContent:'app 日志.zip',children:[],parentElement:null,getClientRects(){return [{}];}};
+const commentCard = {children:[commentName,downloadButton],parentElement:null,querySelector(sel){return sel.includes('download') ? downloadButton : null;},getClientRects(){return [{}];}};
+commentName.parentElement=commentCard;
+const commentRoot={...root,querySelectorAll(selector){if(selector.includes('file-name'))return [commentName];if(selector==='*')return [];if(selector==='[data-clipboard-text]')return [{getAttribute(){return 'QHFG-14462';}}];return [];},innerText:'QHFG-14462 comment'};
+const commentResult=vm.runInNewContext(await readFile(new URL('../src/extractor.js',import.meta.url),'utf8'),{document:{body:commentRoot,title:'Issue',querySelectorAll(sel){return sel==='#root-detail'?[commentRoot]:[];}},location:{href:'https://www.teambition.com/project/a/task/b'},getComputedStyle(){return {visibility:'visible'};},URL});
+assert.equal(commentResult.nativeAttachments[0].name,'app 日志.zip');
+console.log('PASS: visible comment file cards with non-standard classes are queued for native download.');

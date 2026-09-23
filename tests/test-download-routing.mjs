@@ -48,8 +48,8 @@ console.log('PASS: source matching, cancel-before-filename callback, failed canc
 let visibleKey='GXXE-99999',clicks=0;
 globalThis.location={href:sourceUrl};
 globalThis.getComputedStyle=()=>({visibility:'visible'});
-const file={querySelector(selector){return selector==='.file-name'?{textContent:expectedName}:{click(){clicks++;}};}};
-const root={getClientRects(){return [{}];},get innerText(){return visibleKey;},querySelectorAll(selector){return selector==='[data-clipboard-text]'?[{getAttribute(){return visibleKey;}}]:[file];}};
+const fileName={textContent:expectedName,getClientRects(){return [{}];}}; const download={click(){clicks++;}}; const file={parentElement:null,getClientRects(){return [{}];},querySelector(selector){return selector.includes('file-name')?fileName:download;}}; fileName.parentElement=file;
+const root={getClientRects(){return [{}];},get innerText(){return visibleKey;},querySelectorAll(selector){return selector==='[data-clipboard-text]'?[{getAttribute(){return visibleKey;}}]:selector.includes('file-name')?[fileName]:[file];}};
 globalThis.document={querySelectorAll(){return [root];}};
 assert.throws(()=>injection.func(...injection.args),/另一条问题单/);assert.equal(clicks,0);
 visibleKey='GXXE-10001';assert.equal(injection.func(...injection.args),true);assert.equal(clicks,1);
